@@ -1,0 +1,27 @@
+{
+  "name": "sistema-viaticos",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "infra",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @viaticos/shared && npm run build -w @viaticos/bot && npm run build -w @viaticos/api && npm run build -w @viaticos/infra && npm run build -w @viaticos/web",
+    "build:shared": "npm run build -w @viaticos/shared",
+    "build:bot": "npm run build -w @viaticos/bot",
+    "build:api": "npm run build -w @viaticos/api",
+    "build:infra": "npm run build -w @viaticos/infra",
+    "build:web": "npm run build -w @viaticos/web",
+    "clean": "npm run clean --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "cdk": "npm run cdk -w @viaticos/infra",
+    "cdk:synth": "npm run cdk:synth -w @viaticos/infra",
+    "cdk:deploy": "npm run cdk:deploy -w @viaticos/infra",
+    "dev:web": "npm run dev -w @viaticos/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

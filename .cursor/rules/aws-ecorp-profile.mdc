@@ -1,0 +1,31 @@
+---
+description: Usar siempre el perfil AWS CLI `ecorp` para deploys y comandos AWS
+alwaysApply: true
+---
+
+# AWS profile: ecorp
+
+Este proyecto despliega en la cuenta AWS de Ecorp. **Siempre** usar el perfil CLI `ecorp`.
+
+## Obligatorio
+
+- Antes de cualquier comando `aws`, CDK, SAM, SST o script de deploy: `export AWS_PROFILE=ecorp` o `--profile ecorp`.
+- No usar el perfil `default` ni otro perfil salvo que el usuario lo pida explícitamente.
+- Verificar identidad si hay duda: `aws sts get-caller-identity --profile ecorp`.
+
+## Ejemplos
+
+```bash
+# ✅ GOOD
+export AWS_PROFILE=ecorp
+npx cdk deploy
+aws s3 ls --profile ecorp
+
+# ❌ BAD
+aws s3 ls
+npx cdk deploy   # sin AWS_PROFILE=ecorp
+```
+
+## Nota
+
+No imprimir ni commitear access keys. El perfil ya está configurado en la máquina del desarrollador.

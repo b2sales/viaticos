@@ -1,0 +1,28 @@
+---
+description: Minimizar costos AWS en diseño, código y deploy de este proyecto
+alwaysApply: true
+---
+
+# Minimizar costo AWS
+
+Priorizar **pay-per-use** y evitar cargo fijo (EC2, RDS, NAT, contenedores 24/7, Aurora siempre encendido).
+
+## Preferir
+
+- Lambda + API Gateway HTTP, DynamoDB **on-demand**, S3, CloudFront, Cognito.
+- Textract solo **`DetectDocumentText`** (nunca AnalyzeExpense / Forms / Tables / Queries salvo pedido explícito).
+- Bedrock con el **modelo más barato** viable (p.ej. Nova Micro / Haiku); prompts cortos; JSON estricto; sin historial innecesario.
+- Timeouts y memoria Lambda lo más bajos que cumplan el SLA.
+- Logs: retención corta; evitar loguear payloads grandes (OCR completo, fotos).
+- URLs prefirmadas S3 de corta vida; no CloudFront innecesario frente a S3 si no aporta.
+
+## Evitar
+
+- Recursos idle con costo mínimo (NAT Gateway, Elastic IP sin uso, ALB para poco tráfico).
+- Provisioned capacity en DynamoDB salvo justificación.
+- Invocar Bedrock/Textract en retries en loop; fallback a carga manual si fallan.
+- Multi-región, réplicas o servicios “por si acaso”.
+
+## Al proponer cambios
+
+Si hay dos opciones, elegir la más barata que cubra el requisito y decir en una línea el trade-off de costo.

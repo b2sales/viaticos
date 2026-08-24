@@ -1,0 +1,29 @@
+{
+  "name": "@viaticos/infra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "viaticos-infra": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist cdk.out *.tsbuildinfo",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "cdk": "cdk",
+    "cdk:synth": "cdk synth",
+    "cdk:deploy": "cdk deploy --require-approval never"
+  },
+  "dependencies": {
+    "@viaticos/shared": "*",
+    "aws-cdk-lib": "^2.178.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/node": "^22.13.0",
+    "aws-cdk": "^2.178.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3"
+  }
+}
