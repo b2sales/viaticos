@@ -4,6 +4,8 @@ export * from './dynamodb/helpers.js';
 export * from './telegram/client.js';
 export * from './ocr/pipeline.js';
 export * from './auth/entra.js';
+export * from './auth/graph.js';
 export * from './glpi/client.js';
 export * from './reports/bandeja-csv.js';
+export * from './reports/bandeja-xlsx.js';
 export * from './repos/index.js';

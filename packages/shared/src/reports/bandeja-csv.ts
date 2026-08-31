@@ -1,4 +1,5 @@
 import {
+  CLIENT_KIND_LABELS,
   EXPENSE_STATUS_LABELS,
   type Client,
   type Employee,
@@ -51,6 +52,7 @@ export function bandejaCsvHeader(): string {
     'Motivo',
     'Fecha',
     'Cliente',
+    'Tipo',
     'Proyecto',
     'GLPI',
     'Técnico',
@@ -79,6 +81,9 @@ export function expenseToBandejaCsvRow(
     csvEscape(expense.description ?? '—'),
     csvEscape(formatDate(expense.receiptDate)),
     csvEscape(client?.name ?? expense.clientId),
+    csvEscape(
+      expense.kind ? CLIENT_KIND_LABELS[expense.kind] : '—',
+    ),
     csvEscape(project?.name ?? '—'),
     csvEscape(formatGlpi(expense)),
     csvEscape(technician?.name ?? expense.technicianId),

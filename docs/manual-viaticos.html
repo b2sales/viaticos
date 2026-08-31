@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual de usuario — Sistema Viáticos</title>
+  <style>
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1d23;
+      --muted: #5c6370;
+      --accent: #1565c0;
+      --accent-light: #e3f2fd;
+      --border: #dde1e8;
+      --diagram-bg: #f0f2f5;
+      --toc-width: 260px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .page-header {
+      background: var(--accent);
+      color: #fff;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+
+    .page-header h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    .page-header .subtitle {
+      margin: 0;
+      opacity: 0.9;
+      font-size: 1rem;
+    }
+
+    .page-header .meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+
+    .layout {
+      display: flex;
+      max-width: 1100px;
+      margin: 0 auto;
+      gap: 0;
+    }
+
+    nav#toc {
+      position: sticky;
+      top: 0;
+      align-self: flex-start;
+      width: var(--toc-width);
+      min-width: var(--toc-width);
+      max-height: 100vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.25rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    nav#toc h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    nav#toc ol {
+      margin: 0;
+      padding-left: 1.1rem;
+    }
+
+    nav#toc li { margin-bottom: 0.35rem; }
+
+    nav#toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav#toc a:hover { text-decoration: underline; }
+
+    main {
+      flex: 1;
+      min-width: 0;
+      max-width: 800px;
+      padding: 2rem 2rem 4rem;
+      background: var(--surface);
+    }
+
+    section {
+      margin-bottom: 2.5rem;
+      scroll-margin-top: 1rem;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--accent-light);
+      color: var(--accent);
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.75rem;
+    }
+
+    h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+    }
+
+    p { margin: 0 0 1rem; }
+
+    ul, ol {
+      margin: 0 0 1rem;
+      padding-left: 1.5rem;
+    }
+
+    li { margin-bottom: 0.35rem; }
+
+    a { color: var(--accent); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 1.25rem;
+      font-size: 0.925rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--accent-light);
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    .note {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      padding: 0.85rem 1rem;
+      margin: 0 0 1.25rem;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.925rem;
+    }
+
+    .note strong { color: var(--accent); }
+
+    pre.diagram {
+      background: var(--diagram-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      font-family: "SF Mono", "Consolas", "Liberation Mono", monospace;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      margin: 0 0 1.25rem;
+      white-space: pre;
+    }
+
+    .flow-steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1.25rem;
+    }
+
+    .flow-steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 0.65rem 0.65rem 0.65rem 2.75rem;
+      margin-bottom: 0.5rem;
+      background: var(--diagram-bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .flow-steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0.75rem;
+      top: 0.65rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.5rem;
+      text-align: center;
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+    }
+
+    .checklist li {
+      padding-left: 1.75rem;
+      position: relative;
+      margin-bottom: 0.5rem;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    code {
+      background: var(--diagram-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.875em;
+      font-family: "SF Mono", "Consolas", monospace;
+    }
+
+    .page-footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .toc-toggle {
+      display: none;
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      z-index: 100;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 3rem;
+      height: 3rem;
+      font-size: 1.25rem;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+
+      nav#toc {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 85%;
+        max-width: 280px;
+        height: 100vh;
+        z-index: 200;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+      }
+
+      nav#toc.open { transform: translateX(0); }
+
+      .toc-toggle { display: block; }
+
+      main { padding: 1.25rem 1rem 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Ecorp — Sistema Viáticos</h1>
+  <p class="subtitle">Manual de usuario</p>
+  <p class="meta">Versión 1.0 · Agosto 2026 · Documento para usuarios finales</p>
+</header>
+
+<button class="toc-toggle" id="tocToggle" aria-label="Abrir índice">☰</button>
+
+<div class="layout">
+  <nav id="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#intro">1. Introducción</a></li>
+      <li><a href="#roles">2. Roles y permisos</a></li>
+      <li><a href="#onboarding">3. Onboarding</a></li>
+      <li><a href="#carga">4. Carga de comprobantes</a></li>
+      <li><a href="#aprobacion">5. Aprobación</a></li>
+      <li><a href="#liquidacion">6. Liquidación</a></li>
+      <li><a href="#reportes">7. Reportes</a></li>
+      <li><a href="#maestros">8. Datos maestros</a></li>
+      <li><a href="#faq">9. Preguntas frecuentes</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- 1. INTRODUCCIÓN -->
+    <section id="intro">
+      <h2>1. Introducción</h2>
+      <p>
+        El <strong>Sistema Viáticos</strong> de Ecorp permite registrar gastos de campo
+        (combustible, peajes, comidas, hoteles, etc.), someterlos a aprobación y
+        gestionar su liquidación y reembolso.
+      </p>
+      <p>El sistema tiene dos canales de uso:</p>
+      <ul>
+        <li><strong>Bot de Telegram</strong> — para empleados que informan sus gastos en el día a día.</li>
+        <li><strong>Panel web</strong> — <a href="https://viaticos.ecorp.com.ar">https://viaticos.ecorp.com.ar</a> — para supervisores, liquidación y administración.</li>
+      </ul>
+      <div class="note">
+        <strong>Importante:</strong> los gastos se cargan <em>únicamente</em> por Telegram.
+        El panel web sirve para aprobar, consultar, liquidar y administrar; no permite
+        registrar comprobantes nuevos.
+      </div>
+
+      <h3>Visión general del flujo</h3>
+      <pre class="diagram">  Empleado (Telegram)          Panel web                    Liquidación
+  ───────────────────          ─────────                    ───────────
+
+  [Envía comprobante]  ──►  [Bandeja de aprobación]
+                                    │
+                           ┌────────┼────────┐
+                           ▼        ▼        ▼
+                      [Consulta] [Rechaza] [Aprueba]
+                           │                  │
+                           ▼                  ▼
+                    [Empleado            [Gasto aprobado]
+                     responde]                 │
+                                               ▼
+                                         [Nuevo lote]
+                                               │
+                                               ▼
+                                         [Lote cerrado]
+                                               │
+                                               ▼
+                                         [Gasto pagado]</pre>
+    </section>
+
+    <!-- 2. ROLES -->
+    <section id="roles">
+      <h2>2. Roles y permisos</h2>
+      <p>
+        El acceso al <strong>panel web</strong> se define por grupos de Microsoft Entra ID.
+        La pantalla <strong>Técnicos</strong> es solo para quienes cargan gastos por Telegram.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>Grupo Entra</th>
+            <th>Qué puede hacer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Técnico</strong></td>
+            <td>— (alta en Técnicos)</td>
+            <td>Solo Telegram: informar gastos, resumen del mes, responder consultas.</td>
+          </tr>
+          <tr>
+            <td><strong>Supervisor</strong></td>
+            <td>Viaticos-Supervisores</td>
+            <td>Bandeja de su equipo, consolidados, maestros, alta de técnicos de su equipo.</td>
+          </tr>
+          <tr>
+            <td><strong>Admin general</strong></td>
+            <td>Viaticos-Admins</td>
+            <td>Todo: roles, técnicos, liquidación, bandeja completa.</td>
+          </tr>
+          <tr>
+            <td><strong>Liquidación</strong></td>
+            <td>Viaticos-Liquidacion</td>
+            <td>Lotes de pago, consolidados, exportación CSV.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Permisos del panel web</h3>
+      <p>El menú lateral muestra solo las secciones habilitadas para tu rol:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Permiso</th>
+            <th>Secciones habilitadas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Aprobar gastos</td>
+            <td>Bandeja, Consolidados</td>
+          </tr>
+          <tr>
+            <td>Liquidar</td>
+            <td>Liquidación, Consolidados</td>
+          </tr>
+          <tr>
+            <td>Gestionar maestros</td>
+            <td>Clientes, Proyectos, Motivos, Ubicaciones</td>
+          </tr>
+          <tr>
+            <td>Gestionar equipo</td>
+            <td>Técnicos (vista "Mi equipo")</td>
+          </tr>
+          <tr>
+            <td>Configurar roles</td>
+            <td>Roles, Técnicos (vista completa), Consolidados</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        IT agrega usuarios a los grupos Entra correspondientes. No hace falta cargar
+        Object ID manualmente en la app. Si alguien es admin y también supervisa un equipo,
+        debe estar en <strong>Viaticos-Admins</strong> y <strong>Viaticos-Supervisores</strong>.
+      </div>
+    </section>
+
+    <!-- 3. ONBOARDING -->
+    <section id="onboarding">
+      <h2>3. Onboarding</h2>
+
+      <h3>3.1 Empleado nuevo (Telegram)</h3>
+      <p>Si sos empleado que va a informar gastos, seguí estos pasos:</p>
+      <ol class="flow-steps">
+        <li>Tu supervisor o administrador te da de alta en la sección <strong>Técnicos</strong> del panel.</li>
+        <li>El sistema genera una <strong>palabra clave de 6 caracteres</strong> (letras minúsculas y números).</li>
+        <li>Tu supervisor te entrega esa palabra clave por un canal seguro (WhatsApp interno, email, etc.).</li>
+        <li>Abrí el bot de Telegram de viáticos y escribí <code>/start</code> o cualquier mensaje.</li>
+        <li>Si no estás vinculado, el bot te pedirá la palabra clave. Ingresala tal como te la dieron.</li>
+        <li>Tras vincular correctamente, recibirás un saludo y podés usar <code>/ayuda</code> para ver los comandos disponibles.</li>
+      </ol>
+
+      <h4>Problemas frecuentes al vincular</h4>
+      <table>
+        <thead>
+          <tr><th>Situación</th><th>Qué hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>El bot dice "No estás habilitado"</td>
+            <td>Pedile a tu supervisor que te dé de alta en Técnicos y te entregue la palabra clave.</td>
+          </tr>
+          <tr>
+            <td>Palabra clave incorrecta</td>
+            <td>Verificá que la escribiste bien (6 caracteres, minúsculas). Tenés hasta 5 intentos.</td>
+          </tr>
+          <tr>
+            <td>Superaste el límite de intentos</td>
+            <td>Contactá a tu supervisor para que regenere una nueva palabra clave desde Técnicos.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3.2 Usuario del panel web</h3>
+      <p>Si sos supervisor, liquidación o administrador:</p>
+      <ol class="flow-steps">
+        <li>Ingresá a <a href="https://viaticos.ecorp.com.ar">https://viaticos.ecorp.com.ar</a>.</li>
+        <li>Hacé clic en <strong>Iniciar sesión con Microsoft</strong>.</li>
+        <li>Usá tu cuenta corporativa de Microsoft. Debés pertenecer a uno de los grupos Entra: Viaticos-Admins, Viaticos-Supervisores o Viaticos-Liquidacion.</li>
+        <li>El menú lateral mostrará solo las secciones que tu rol permite.</li>
+      </ol>
+
+      <h3>3.3 Configuración inicial (administrador)</h3>
+      <p>Checklist para poner el sistema en marcha por primera vez:</p>
+      <ul class="checklist">
+        <li>Iniciar sesión en el panel con cuenta de administrador.</li>
+        <li>Revisar <strong>Roles</strong>: verificar perfiles (Técnico, Supervisor, Admin general, Liquidación) y cadenas de aprobación.</li>
+        <li>Crear <strong>Técnicos</strong> (bot Telegram): nombre, supervisor y palabra clave.</li>
+        <li>Configurar <strong>Clientes</strong> y <strong>Proyectos</strong>.</li>
+        <li>Revisar <strong>Motivos</strong> y <strong>Ubicaciones</strong> (viene un catálogo inicial precargado).</li>
+        <li>Entregar palabras clave de Telegram a cada empleado técnico.</li>
+      </ul>
+    </section>
+
+    <!-- 4. CARGA DE COMPROBANTES -->
+    <section id="carga">
+      <h2>4. Carga de comprobantes (Telegram)</h2>
+      <p>
+        Todos los gastos se informan por el bot de Telegram. Hay dos formas principales
+        de cargar un gasto y una forma de responder consultas.
+      </p>
+
+      <h3>4.1 Flujo A — Foto del comprobante</h3>
+      <p>La forma más rápida: enviá una foto del ticket o factura.</p>
+      <ol class="flow-steps">
+        <li>Enviá la <strong>foto del comprobante</strong> al bot.</li>
+        <li>El sistema lee automáticamente monto, fecha y comercio.</li>
+        <li>Revisá los datos detectados. Podés <strong>Confirmar</strong>, <strong>Cancelar</strong> o <strong>Editar</strong> monto, fecha o comercio.</li>
+        <li>Elegí el <strong>Motivo</strong> del gasto (Combustible, Peaje, Comida, etc.).</li>
+        <li>Elegí la <strong>Ubicación</strong>.</li>
+        <li>Elegí el <strong>Cliente</strong> asociado.</li>
+        <li>Opcionalmente, ingresá un número de <strong>incidente GLPI</strong> o tocá "Omitir incidente".</li>
+        <li>Revisá el resumen final y tocá <strong>Enviar gasto</strong>.</li>
+        <li>El gasto queda en estado <strong>Pendiente</strong>, a la espera de aprobación.</li>
+      </ol>
+
+      <pre class="diagram">  [Foto] ──► [Lectura automática] ──► [Confirmar/Editar datos]
+                                              │
+                                              ▼
+                                        [Motivo] ──► [Ubicación] ──► [Cliente]
+                                                                        │
+                                                                        ▼
+                                                              [GLPI opcional]
+                                                                        │
+                                                                        ▼
+                                                              [Confirmación final]
+                                                                        │
+                                                                        ▼
+                                                                  [Pendiente]</pre>
+
+      <h3>4.2 Flujo B — Carga manual sin foto</h3>
+      <p>Si no tenés comprobante en imagen, usá el comando <code>/gasto</code>:</p>
+      <ol class="flow-steps">
+        <li>Escribí <code>/gasto</code> en el chat con el bot.</li>
+        <li>Ingresá el <strong>monto</strong> (ej. 1500 o 1.500,50).</li>
+        <li>Ingresá la <strong>fecha</strong> (formato AAAA-MM-DD o DD/MM/AAAA).</li>
+        <li>Ingresá el <strong>comercio</strong> o escribí <code>-</code> para omitir.</li>
+        <li>Continuá con Motivo → Ubicación → Cliente → GLPI → Confirmación (igual que el flujo con foto).</li>
+      </ol>
+
+      <h3>4.3 Flujo C — Responder una consulta del aprobador</h3>
+      <p>
+        Si uno de tus gastos está en estado <strong>Info requerida</strong>, recibirás
+        un mensaje del bot con la consulta del aprobador. Respondé con un mensaje de
+        texto normal en Telegram. Tu respuesta se registra y el gasto vuelve a
+        <strong>Pendiente</strong> para que el aprobador lo revise.
+      </p>
+
+      <h3>4.4 Comandos del bot</h3>
+      <table>
+        <thead>
+          <tr><th>Comando</th><th>Función</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>/start</code></td><td>Iniciar o reiniciar la conversación con el bot.</td></tr>
+          <tr><td><code>/ayuda</code></td><td>Mostrar la lista de comandos disponibles.</td></tr>
+          <tr><td><code>/gasto</code></td><td>Cargar un gasto sin foto (te pregunta los datos paso a paso).</td></tr>
+          <tr><td><code>/resumen</code></td><td>Ver totales del mes en curso (pendientes, aprobados, rechazados, info requerida).</td></tr>
+          <tr><td><code>/detalle</code></td><td>Ver listado paginado de todos tus gastos del mes.</td></tr>
+          <tr><td><code>/cancelar</code></td><td>Cancelar una carga de gasto en curso.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <strong>Nota:</strong> el <em>proyecto</em> contable no lo elegís al cargar el gasto.
+        Lo asigna quien aprueba en el paso final de la cadena de aprobación.
+      </div>
+    </section>
+
+    <!-- 5. APROBACIÓN -->
+    <section id="aprobacion">
+      <h2>5. Aprobación (panel — Bandeja)</h2>
+      <p>
+        Los supervisores y administradores revisan los gastos pendientes desde la
+        sección <strong>Bandeja</strong> del panel web. Al hacer clic en un gasto
+        se abre el detalle con todas las acciones disponibles.
+      </p>
+
+      <h3>5.1 Estados del gasto</h3>
+      <table>
+        <thead>
+          <tr><th>Estado</th><th>Significado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Pendiente</strong></td><td>Esperando aprobación de quien corresponda en la cadena.</td></tr>
+          <tr><td><strong>Info requerida</strong></td><td>El aprobador pidió más datos; el empleado debe responder por Telegram.</td></tr>
+          <tr><td><strong>Aprobado</strong></td><td>Gasto validado, listo para incluir en un lote de liquidación.</td></tr>
+          <tr><td><strong>Rechazado</strong></td><td>Gasto no aprobado; no se reembolsa.</td></tr>
+          <tr><td><strong>En liquidación</strong></td><td>Incluido en un lote de pago abierto (borrador).</td></tr>
+          <tr><td><strong>Pagado</strong></td><td>El lote fue cerrado; el reembolso quedó registrado.</td></tr>
+        </tbody>
+      </table>
+
+      <pre class="diagram">  Pendiente ──► Info requerida ──► Pendiente (tras respuesta del empleado)
+      │
+      ├──► Rechazado (fin)
+      │
+      └──► Aprobado ──► En liquidación ──► Pagado</pre>
+
+      <h3>5.2 Cadena de aprobación</h3>
+      <p>
+        La aprobación puede tener varios pasos, configurables en
+        <strong>Roles → Cadenas de aprobación</strong> (hasta 5 pasos).
+      </p>
+      <p>Por defecto, la cadena es:</p>
+      <pre class="diagram">  Técnico (informa) ──► Supervisor (aprueba) ──► Admin general (aprueba final)</pre>
+      <ul>
+        <li>En pasos <strong>intermedios</strong>, el botón dice <strong>Aprobar paso</strong>: el gasto sigue Pendiente y pasa al siguiente aprobador.</li>
+        <li>En el <strong>paso final</strong>, el botón dice <strong>Aprobar</strong> y exige asignar un <strong>Proyecto</strong> (obligatorio).</li>
+        <li>Un supervisor solo ve gastos de empleados de su equipo (cadena de jefes).</li>
+        <li>Nadie puede aprobar sus propios gastos.</li>
+      </ul>
+
+      <h3>5.3 Acciones en el detalle del gasto</h3>
+      <p>Al abrir un gasto desde la Bandeja podés:</p>
+      <table>
+        <thead>
+          <tr><th>Acción</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Ver comprobante</td>
+            <td>Imagen del ticket/factura con opción de ampliar.</td>
+          </tr>
+          <tr>
+            <td>Editar datos</td>
+            <td>Corregir monto, comercio, fecha, motivo, ubicación, cliente o incidente GLPI antes de decidir.</td>
+          </tr>
+          <tr>
+            <td>Consultar técnico</td>
+            <td>Enviar un mensaje al empleado por Telegram. El gasto pasa a Info requerida.</td>
+          </tr>
+          <tr>
+            <td>Rechazar</td>
+            <td>Rechazar el gasto con motivo opcional. El empleado recibe notificación por Telegram.</td>
+          </tr>
+          <tr>
+            <td>Aprobar / Aprobar paso</td>
+            <td>Aprobar el gasto (o avanzar al siguiente paso). En aprobación final: elegir proyecto y opcionalmente ticket GLPI.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>5.4 Notificaciones al empleado</h3>
+      <ul>
+        <li><strong>Rechazo</strong> — el empleado recibe mensaje por Telegram con el motivo (si se indicó).</li>
+        <li><strong>Consulta</strong> — el empleado recibe la pregunta del aprobador por Telegram.</li>
+        <li><strong>Aprobación</strong> — no se envía notificación automática. El empleado puede consultar con <code>/resumen</code> o <code>/detalle</code>.</li>
+      </ul>
+
+      <h3>5.5 Integración con GLPI</h3>
+      <p>
+        Al cargar un gasto, el empleado puede vincular opcionalmente un número de
+        incidente GLPI. Al aprobar en el paso final, el aprobador puede buscar y
+        vincular un ticket GLPI; si hay ticket asociado, el sistema registra un
+        seguimiento automático en GLPI con el detalle del gasto aprobado.
+      </p>
+    </section>
+
+    <!-- 6. LIQUIDACIÓN -->
+    <section id="liquidacion">
+      <h2>6. Liquidación y reembolsos</h2>
+      <p>
+        El área de liquidación (o el administrador) arma lotes de pago con los gastos
+        ya aprobados y los cierra cuando el reembolso fue efectuado.
+      </p>
+
+      <h3>Flujo de liquidación</h3>
+      <ol class="flow-steps">
+        <li>Ingresá a la sección <strong>Liquidación</strong> del panel.</li>
+        <li>Hacé clic en <strong>Nuevo lote de liquidación</strong>.</li>
+        <li>Completá nombre opcional, fechas del período y seleccioná los gastos <strong>Aprobados</strong> a incluir.</li>
+        <li>Al crear el lote, los gastos seleccionados pasan a estado <strong>En liquidación</strong>.</li>
+        <li>Cuando el pago fue realizado, hacé clic en <strong>Cerrar lote</strong>.</li>
+        <li>Los gastos del lote pasan a estado <strong>Pagado</strong>.</li>
+        <li>Podés exportar un <strong>CSV</strong> del lote en cualquier momento.</li>
+      </ol>
+
+      <pre class="diagram">  Gastos Aprobados
+         │
+         ▼
+  [Nuevo lote] ──► Lote en Borrador (gastos "En liquidación")
+         │
+         ▼
+  [Cerrar lote] ──► Lote Cerrado (gastos "Pagado")
+         │
+         ▼
+  [Exportar CSV]</pre>
+
+      <div class="note">
+        Un gasto aprobado solo puede estar en un lote a la vez. Una vez cerrado el lote,
+        el estado Pagado es definitivo.
+      </div>
+    </section>
+
+    <!-- 7. REPORTES -->
+    <section id="reportes">
+      <h2>7. Reportes</h2>
+
+      <h3>7.1 Consolidados (panel web)</h3>
+      <p>
+        Disponible para usuarios con permiso de aprobar, liquidar o configurar roles.
+        Se accede desde el menú <strong>Consolidados</strong>.
+      </p>
+      <ul>
+        <li><strong>Filtros:</strong> rango de fechas, cliente y proyecto.</li>
+        <li><strong>Tarjetas por estado:</strong> cantidad y monto total de gastos Pendientes, Info requerida, Aprobados y Rechazados.</li>
+        <li><strong>Desglose por cliente</strong> y <strong>por proyecto</strong>.</li>
+        <li><strong>Exportar CSV:</strong> descarga un archivo con todos los gastos del filtro aplicado.</li>
+      </ul>
+
+      <h3>7.2 CSV por lote de liquidación</h3>
+      <p>
+        Desde la sección <strong>Liquidación</strong>, cada lote tiene un botón
+        <strong>CSV</strong> para exportar los gastos incluidos en ese lote.
+      </p>
+
+      <h3>7.3 Resumen del empleado (Telegram)</h3>
+      <table>
+        <thead>
+          <tr><th>Comando</th><th>Qué muestra</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/resumen</code></td>
+            <td>Totales del mes en curso: cantidad y monto por estado (pendientes, aprobados, rechazados, info requerida).</td>
+          </tr>
+          <tr>
+            <td><code>/detalle</code></td>
+            <td>Listado paginado de todos tus gastos del mes, con botones Anterior/Siguiente.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 8. DATOS MAESTROS -->
+    <section id="maestros">
+      <h2>8. Datos maestros y administración</h2>
+      <p>
+        Las secciones de catálogos y administración están en el panel web y son
+        accesibles según los permisos de cada rol.
+      </p>
+
+      <table>
+        <thead>
+          <tr><th>Sección del panel</th><th>Para qué sirve</th><th>Quién la gestiona</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Clientes</strong></td>
+            <td>Empresas o servicios asociados al gasto. El empleado elige cliente al cargar.</td>
+            <td>Supervisor, Admin general</td>
+          </tr>
+          <tr>
+            <td><strong>Proyectos</strong></td>
+            <td>Imputación contable del gasto. Se asigna al aprobar (no al cargar).</td>
+            <td>Supervisor, Admin general</td>
+          </tr>
+          <tr>
+            <td><strong>Motivos</strong></td>
+            <td>Categoría del gasto. El empleado elige motivo al cargar en Telegram.</td>
+            <td>Supervisor, Admin general</td>
+          </tr>
+          <tr>
+            <td><strong>Ubicaciones</strong></td>
+            <td>Lugar de referencia del gasto. El empleado elige ubicación al cargar.</td>
+            <td>Supervisor, Admin general</td>
+          </tr>
+          <tr>
+            <td><strong>Técnicos / Mi equipo</strong></td>
+            <td>Alta de técnicos de campo, palabra clave Telegram, supervisor responsable.</td>
+            <td>Supervisor (su equipo), Admin general (todos)</td>
+          </tr>
+          <tr>
+            <td><strong>Roles</strong></td>
+            <td>Definir permisos de cada rol y cadenas de aprobación (qué rol aprueba a qué rol remitente).</td>
+            <td>Admin general</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Motivos precargados</h3>
+      <p>Al instalar el sistema vienen estos motivos de gasto:</p>
+      <p>Combustible · Peaje · Comida · Hotel · Estacionamiento · Transporte · Insumos · Otros</p>
+      <p>Podés agregar, editar o desactivar motivos desde la sección <strong>Motivos</strong>.</p>
+
+      <h3>Gestión de técnicos</h3>
+      <ul>
+        <li><strong>Admin general:</strong> ve todos los técnicos, asigna supervisor (dropdown desde Entra) y puede vincular Telegram ID manualmente.</li>
+        <li><strong>Supervisor:</strong> ve solo <strong>Mi equipo</strong> (técnicos bajo su jefatura), puede crear técnicos y generar palabras clave.</li>
+        <li>Estado Telegram en la grilla: <strong>Vinculado</strong> (ya usa el bot), <strong>Pendiente</strong> (tiene palabra clave sin usar) o vacío.</li>
+        <li>Botones para <strong>copiar</strong> y <strong>regenerar</strong> la palabra clave de vinculación.</li>
+      </ul>
+    </section>
+
+    <!-- 9. FAQ -->
+    <section id="faq">
+      <h2>9. Preguntas frecuentes</h2>
+
+      <h3>Acceso y permisos</h3>
+      <dl>
+        <dt><strong>No puedo entrar al panel web.</strong></dt>
+        <dd>Verificá que iniciás sesión con tu cuenta corporativa. Si ves "Sin permiso", contactá a IT para que te agreguen al grupo Entra correspondiente (Admins, Supervisores o Liquidación).</dd>
+
+        <dt><strong>El bot de Telegram dice "No estás habilitado".</strong></dt>
+        <dd>Pedile a tu supervisor que te dé de alta en Técnicos y te entregue la palabra clave de 6 caracteres.</dd>
+
+        <dt><strong>La palabra clave no funciona.</strong></dt>
+        <dd>Verificá que la escribiste correctamente (6 caracteres, minúsculas). Si superaste 5 intentos, pedile a tu supervisor que regenere una nueva clave desde Técnicos.</dd>
+      </dl>
+
+      <h3>Carga de gastos</h3>
+      <dl>
+        <dt><strong>¿Puedo cargar un gasto desde el panel web?</strong></dt>
+        <dd>No. Todos los gastos se cargan por Telegram (foto o comando <code>/gasto</code>).</dd>
+
+        <dt><strong>¿Por qué no me deja elegir proyecto al cargar?</strong></dt>
+        <dd>El proyecto lo asigna quien aprueba el gasto en el paso final. Esto permite que administración impute correctamente el gasto.</dd>
+
+        <dt><strong>La lectura automática del comprobante falló o detectó mal los datos.</strong></dt>
+        <dd>Usá los botones de edición (Monto, Fecha, Comercio) para corregir antes de confirmar. Si no tenés foto, usá <code>/gasto</code> para cargar manualmente.</dd>
+
+        <dt><strong>¿Cómo cancelo una carga en curso?</strong></dt>
+        <dd>Escribí <code>/cancelar</code> en el chat con el bot.</dd>
+      </dl>
+
+      <h3>Aprobación y estados</h3>
+      <dl>
+        <dt><strong>Mi gasto fue rechazado. ¿Qué hago?</strong></dt>
+        <dd>Revisá el mensaje del bot en Telegram; incluye el motivo del rechazo si el aprobador lo indicó. Deberás cargar un nuevo gasto si corresponde.</dd>
+
+        <dt><strong>El aprobador me consultó algo. ¿Cómo respondo?</strong></dt>
+        <dd>Respondé con un mensaje de texto normal en Telegram. No hace falta ningún comando especial.</dd>
+
+        <dt><strong>¿Cómo sé si mi gasto fue aprobado?</strong></dt>
+        <dd>Usá <code>/resumen</code> o <code>/detalle</code> en Telegram. No recibirás notificación automática de aprobación.</dd>
+      </dl>
+
+      <h3>Liquidación</h3>
+      <dl>
+        <dt><strong>¿Cuándo me pagan un gasto aprobado?</strong></dt>
+        <dd>Cuando el área de liquidación incluye tu gasto en un lote y cierra ese lote. El estado pasará a "Pagado". Consultá con liquidación si tenés dudas sobre plazos.</dd>
+      </dl>
+    </section>
+
+  </main>
+</div>
+
+<footer class="page-footer">
+  <p>Ecorp — Sistema Viáticos · <a href="https://viaticos.ecorp.com.ar">viaticos.ecorp.com.ar</a></p>
+  <p>Documento para usuarios finales. No incluye detalles técnicos de implementación.</p>
+</footer>
+
+<script>
+  (function () {
+    var toggle = document.getElementById('tocToggle');
+    var toc = document.getElementById('toc');
+    if (toggle && toc) {
+      toggle.addEventListener('click', function () {
+        toc.classList.toggle('open');
+      });
+      toc.querySelectorAll('a').forEach(function (link) {
+        link.addEventListener('click', function () {
+          toc.classList.remove('open');
+        });
+      });
+    }
+  })();
+</script>
+
+</body>
+</html>

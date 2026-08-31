@@ -71,8 +71,8 @@ export function Layout() {
     }
     if (capabilities.canManageTeam || capabilities.canConfigureRoles) {
       items.push({
-        to: '/empleados',
-        label: 'Empleados',
+        to: '/tecnicos',
+        label: 'Usuarios',
         icon: <EngineeringIcon />,
       });
     }
@@ -122,11 +122,10 @@ export function Layout() {
           </ListItemButton>
         ))}
       </List>
-      {me?.role?.name && (
+      {(me?.panelRoleLabel || me?.role?.name) && (
         <Box sx={{ p: 2 }}>
           <Typography variant="caption" color="text.secondary">
-            Rol: {me.role.name}
-            {me.isBootstrapAdmin ? ' (admin Entra)' : ''}
+            Rol: {me.panelRoleLabel ?? me.role?.name}
           </Typography>
         </Box>
       )}

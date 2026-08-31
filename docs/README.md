@@ -31,7 +31,7 @@ cd infra && npx cdk deploy ViaticosStack --require-approval never
 ## Secrets (Secrets Manager)
 
 - `viaticos/telegram-bot-token`
-- `viaticos/entra-config` — `{ tenantId, clientId, adminGroupId }`
+- `viaticos/entra-config` — `{ tenantId, clientId, clientSecret, adminGroupId, supervisorGroupId, liquidacionGroupId }`
 - `viaticos/telegram-webhook-secret` — generado por CDK
 - `viaticos/glpi-config` — `{ baseUrl, appToken, userToken }` (GLPI 10; `baseUrl` termina en `/apirest.php` y debe ser alcanzable por HTTPS desde la Lambda)
 
@@ -60,15 +60,52 @@ curl -s -H "App-Token: APP" -H "Authorization: user_token USER" \
 
 Si `initSession` devuelve 401, el bot no puede validar tickets (mostrará error de conexión/credenciales).
 
+### Configurar Entra ID (panel web + Graph)
+
+El acceso al panel se define por **grupos de Microsoft Entra**, no por registros manuales en la app:
+
+| Grupo Entra | Permisos en el panel |
+|-------------|----------------------|
+| `Viaticos-Admins` | Admin general (todo) |
+| `Viaticos-Supervisores` | Supervisor (bandeja, maestros, técnicos de su equipo) |
+| `Viaticos-Liquidacion` | Liquidación + consolidados |
+
+Actualizar el secreto (perfil `ecorp`):
+
+```bash
+export AWS_PROFILE=ecorp
+aws secretsmanager put-secret-value \
+  --secret-id viaticos/entra-config \
+  --secret-string '{
+    "tenantId":"5895d415-3e31-4352-87ff-a3bbf1017bc8",
+    "clientId":"d90e8823-9795-4491-9586-3df2bf6622b0",
+    "clientSecret":"...",
+    "adminGroupId":"59c177f8-d594-4803-a4a2-4ae3749c3f40",
+    "supervisorGroupId":"OBJECT-ID-Viaticos-Supervisores",
+    "liquidacionGroupId":"OBJECT-ID-Viaticos-Liquidacion"
+  }'
+```
+
+En la app registration de Entra, estos permisos **delegados** de Microsoft Graph deben tener consentimiento de administrador:
+
+- `GroupMember.Read.All` — listar miembros del grupo supervisores
+- `User.ReadBasic.All` — leer nombre y email de esos usuarios (sin esto Graph devuelve solo el Object ID)
+
+El dropdown de supervisores en **Técnicos** consulta Graph **desde el navegador** (la app es SPA y no usa client secret en el servidor).
+
+Variable de build del panel: `VITE_ENTRA_SUPERVISOR_GROUP_ID` (Object ID del grupo `Viaticos-Supervisores`).
+
+Si una persona es admin y también supervisa un equipo, agregala a **Viaticos-Admins** y **Viaticos-Supervisores**; el panel usa permisos de admin y puede asignarse como supervisor de técnicos.
+
 ## Primer uso
 
-1. Abrí https://viaticos.ecorp.com.ar e iniciá sesión con Microsoft (grupo `Viaticos-Admins` = administrador general bootstrap).
-2. En **Roles**, revisá los perfiles seed (Técnico, Supervisor, Admin general, Liquidación) y las cadenas de aprobación.
-3. En **Empleados**, creá usuarios con `telegramUserId`, `roleId` y opcionalmente `entraOid` (para panel web) y `managerId` (jefe).
-4. Supervisores con Entra OID pueden cargar técnicos de su equipo y gestionar clientes/proyectos.
-5. Cualquier empleado activo informa gastos por el bot Telegram.
-6. La bandeja muestra solo gastos del paso de aprobación que te corresponde.
-7. Perfil **Liquidación**: armar lotes de gastos aprobados y cerrarlos como pagados.
+1. Abrí https://viaticos.ecorp.com.ar e iniciá sesión con Microsoft (miembro de `Viaticos-Admins`, `Viaticos-Supervisores` o `Viaticos-Liquidacion`).
+2. En **Roles**, revisá los perfiles seed y las cadenas de aprobación.
+3. En **Técnicos**, creá técnicos de campo (solo bot Telegram): nombre, supervisor (dropdown desde Entra) y palabra clave.
+4. Supervisores (grupo Entra) gestionan su equipo de técnicos, clientes/proyectos y bandeja.
+5. Cualquier técnico activo informa gastos por el bot Telegram.
+6. La bandeja muestra gastos del paso de aprobación que te corresponde (supervisores: solo su equipo).
+7. Perfil **Liquidación** (grupo Entra): armar lotes de gastos aprobados y cerrarlos como pagados.
 
 Para obtener el Telegram user id: el técnico escribe al bot `@userinfobot` o mirá CloudWatch logs del webhook al hacer `/start` (responderá “no habilitado” hasta estar registrado).
 
@@ -82,7 +119,8 @@ Para obtener el Telegram user id: el técnico escribe al bot `@userinfobot` o mi
 
 - Roles configurables con capabilities (`canApprove`, `canManageTeam`, `canManageMasters`, `canConfigureRoles`, `canLiquidate`).
 - Cadenas de aprobación N pasos: qué rol aprueba a qué rol remitente.
-- Empleados con `managerId` para ruteo de bandeja; supervisores gestionan su equipo.
+- Acceso al panel: grupos Entra (`Viaticos-Admins`, `Viaticos-Supervisores`, `Viaticos-Liquidacion`).
+- Técnicos con `managerEntraOid` (Object ID del supervisor en Entra) para ruteo de bandeja y “Mi equipo”.
 - Liquidación: lotes DRAFT → CLOSED (gastos `APPROVED` → `IN_LIQUIDATION` → `PAID`).
 
 ## Workspaces

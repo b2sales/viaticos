@@ -37,7 +37,9 @@ import {
   glpiUiBaseUrl,
   listApprovalChains,
   listEmployees,
-  listEmployeesByManagerId,
+  listEmployeesByManagerEntraOid,
+  listSupervisorGroupMembers,
+  listTechnicians,
   listExpensesByStatus,
   listMessagesByExpenseId,
   listRoles,
@@ -55,6 +57,7 @@ import {
   createRole,
   updateRole,
   expensesToBandejaCsv,
+  expensesToBandejaXlsx,
   listLocations,
   listMotives,
   type ApprovalChainStep,
@@ -138,6 +141,26 @@ function textResponse(
   return { statusCode, headers, body };
 }
 
+function binaryResponse(
+  statusCode: number,
+  body: Buffer,
+  origin: string | undefined,
+  contentType: string,
+  filename?: string,
+): APIGatewayProxyResultV2 {
+  const headers = corsHeaders(origin);
+  headers['Content-Type'] = contentType;
+  if (filename) {
+    headers['Content-Disposition'] = `attachment; filename="${filename}"`;
+  }
+  return {
+    statusCode,
+    headers,
+    body: body.toString('base64'),
+    isBase64Encoded: true,
+  };
+}
+
 function parseBody<T>(event: APIGatewayProxyEventV2): T {
   return JSON.parse(event.body ?? '{}') as T;
 }
@@ -175,7 +198,7 @@ function requireCap(
 }
 
 function actorId(user: AuthUser): string {
-  return user.employee?.id ?? user.oid;
+  return user.oid;
 }
 
 interface ExpenseUpdateBody {
@@ -249,7 +272,7 @@ async function assignableRoleIdsForSupervisor(
 ): Promise<Set<string>> {
   const chains = await listApprovalChains();
   const ids = new Set<string>();
-  const myRoleId = user.employee?.roleId ?? user.role?.id;
+  const myRoleId = user.panelRoleId ?? user.role?.id;
   for (const chain of chains) {
     if (chain.steps.some((s) => s.approverRoleId === myRoleId)) {
       ids.add(chain.submitterRoleId);
@@ -261,15 +284,20 @@ async function assignableRoleIdsForSupervisor(
   return ids;
 }
 
+function technicianManagedByUser(technician: Employee, user: AuthUser): boolean {
+  if (user.capabilities.canConfigureRoles) return true;
+  if (technician.managerEntraOid && technician.managerEntraOid === user.oid) {
+    return true;
+  }
+  return false;
+}
+
 async function canUserApproveExpense(
   user: AuthUser,
   expense: Expense,
 ): Promise<boolean> {
   if (!user.capabilities.canApprove) return false;
   if (expense.status !== 'PENDING' && expense.status !== 'NEEDS_INFO') {
-    return false;
-  }
-  if (user.employee && expense.technicianId === user.employee.id) {
     return false;
   }
 
@@ -285,26 +313,18 @@ async function canUserApproveExpense(
 
   if (user.capabilities.canConfigureRoles) return true;
 
-  const myRoleId = user.employee?.roleId ?? user.role?.id;
+  const myRoleId = user.panelRoleId ?? user.role?.id;
   if (myRoleId !== requiredRoleId) return false;
 
-  // Prefer manager-chain match
   const submitter = await getEmployeeById(expense.technicianId);
-  if (user.employee && submitter) {
-    let cursor: string | undefined = submitter.managerId;
-    const seen = new Set<string>();
-    while (cursor && !seen.has(cursor)) {
-      seen.add(cursor);
-      if (cursor === user.employee.id) return true;
-      const mgr = await getEmployeeById(cursor);
-      cursor = mgr?.managerId;
-    }
-    // Fallback: any user with the required role if no manager chain
-    if (!submitter.managerId) return true;
-    return false;
+  if (!submitter) return false;
+
+  if (submitter.managerEntraOid) {
+    return submitter.managerEntraOid === user.oid;
   }
 
-  // Bootstrap admin without employee row
+  if (!submitter.managerEntraOid && !submitter.managerId) return true;
+
   return user.isBootstrapAdmin;
 }
 
@@ -355,6 +375,12 @@ function filterExpenses(
     if (params.projectId && e.projectId !== params.projectId) return false;
     if (params.technicianId && e.technicianId !== params.technicianId)
       return false;
+    if (
+      (params.kind === 'PROYECTO' || params.kind === 'SERVICIO') &&
+      e.kind !== params.kind
+    ) {
+      return false;
+    }
     const dateField = e.receiptDate ?? e.submittedAt;
     if (params.from && dateField < params.from) return false;
     if (params.to && dateField > `${params.to}T23:59:59.999Z`) return false;
@@ -431,6 +457,12 @@ function parseClientKind(kind?: string): ClientKind {
   return kind === 'SERVICIO' ? 'SERVICIO' : 'PROYECTO';
 }
 
+/** Returns PROYECTO/SERVICIO or undefined if missing/invalid. */
+function parseExpenseKind(kind?: string): ClientKind | undefined {
+  if (kind === 'PROYECTO' || kind === 'SERVICIO') return kind;
+  return undefined;
+}
+
 async function buildBandejaLookups() {
   const [clients, projects, technicians, motives, locations] = await Promise.all([
     scan<Client>({ TableName: TABLE_NAMES.clients }),
@@ -502,12 +534,39 @@ export async function handleAdminApi(
           name: user.name,
           email: user.email,
           isBootstrapAdmin: user.isBootstrapAdmin,
-          employee: user.employee,
+          isSupervisorGroupMember: user.isSupervisorGroupMember,
+          panelRoleId: user.panelRoleId,
+          panelRoleLabel: user.panelRoleLabel,
           role: user.role,
           capabilities: user.capabilities,
         },
         origin,
       );
+    }
+
+    // --- Entra / Graph ---
+    if (method === 'GET' && path === '/entra/supervisors') {
+      if (
+        !user.capabilities.canConfigureRoles &&
+        !user.capabilities.canManageTeam
+      ) {
+        throw new HttpError(403, 'Forbidden');
+      }
+      try {
+        const items = await listSupervisorGroupMembers();
+        return jsonResponse(200, { items }, origin);
+      } catch (err) {
+        console.error('Graph supervisors list failed', err);
+        return jsonResponse(
+          503,
+          {
+            error:
+              'Graph server-side no disponible para apps SPA. El panel carga supervisores directamente desde Microsoft Entra.',
+            code: 'graph_spa_fallback',
+          },
+          origin,
+        );
+      }
     }
 
     // --- Roles ---
@@ -523,7 +582,7 @@ export async function handleAdminApi(
       let items = await listRoles();
       if (!user.capabilities.canConfigureRoles && user.capabilities.canManageTeam) {
         const assignable = await assignableRoleIdsForSupervisor(user);
-        items = items.filter((r) => assignable.has(r.id) || r.id === user.employee?.roleId);
+        items = items.filter((r) => assignable.has(r.id) || r.id === user.panelRoleId);
       }
       return jsonResponse(200, { items }, origin);
     }
@@ -828,7 +887,7 @@ export async function handleAdminApi(
       }
     }
 
-    // --- Employees (technicians) ---
+    // --- Technicians (Telegram field workers only) ---
     if (method === 'GET' && path === '/technicians') {
       if (
         !user.capabilities.canConfigureRoles &&
@@ -840,16 +899,15 @@ export async function handleAdminApi(
       }
       let items: Employee[];
       if (user.capabilities.canConfigureRoles) {
-        items = await listEmployees();
-      } else if (user.capabilities.canManageTeam && user.employee) {
-        items = await listEmployeesByManagerId(user.employee.id);
+        items = await listTechnicians();
+      } else if (user.capabilities.canManageTeam) {
+        items = await listEmployeesByManagerEntraOid(user.oid);
       } else {
-        items = await listEmployees();
+        items = await listTechnicians();
       }
-      // Backfill missing roleId for UI
       items = items.map((e) => ({
         ...e,
-        roleId: e.roleId || SEED_ROLE_IDS.tecnico,
+        roleId: SEED_ROLE_IDS.tecnico,
       }));
       return jsonResponse(200, { items }, origin);
     }
@@ -860,7 +918,9 @@ export async function handleAdminApi(
       ) {
         throw new HttpError(403, 'Forbidden');
       }
-      const body = parseBody<Partial<Employee>>(event);
+      const body = parseBody<Partial<Employee & { managerEntraOid?: string }>>(
+        event,
+      );
 
       if (
         !user.capabilities.canConfigureRoles &&
@@ -888,31 +948,20 @@ export async function handleAdminApi(
         );
       }
 
-      let roleId = body.roleId || SEED_ROLE_IDS.tecnico;
-      let managerId = body.managerId;
+      const roleId = SEED_ROLE_IDS.tecnico;
+      let managerEntraOid: string | undefined;
 
-      if (!user.capabilities.canConfigureRoles) {
-        if (!user.employee) {
+      if (user.capabilities.canConfigureRoles) {
+        managerEntraOid = body.managerEntraOid?.trim() || undefined;
+        if (!managerEntraOid) {
           return jsonResponse(
             400,
-            { error: 'Tu usuario Entra no está vinculado a un empleado' },
+            { error: 'Seleccioná un supervisor responsable' },
             origin,
           );
         }
-        managerId = user.employee.id;
-        const assignable = await assignableRoleIdsForSupervisor(user);
-        if (!assignable.has(roleId)) {
-          return jsonResponse(
-            403,
-            { error: 'No podés asignar ese rol' },
-            origin,
-          );
-        }
-      }
-
-      const role = await getRoleById(roleId);
-      if (!role?.active) {
-        return jsonResponse(400, { error: 'Invalid role' }, origin);
+      } else {
+        managerEntraOid = user.oid;
       }
 
       const ts = nowIso();
@@ -927,8 +976,7 @@ export async function handleAdminApi(
         telegramUserId,
         telegramLinkCode,
         roleId,
-        managerId: managerId || undefined,
-        entraOid: body.entraOid || undefined,
+        managerEntraOid,
         active: body.active ?? true,
         createdAt: ts,
         updatedAt: ts,
@@ -950,8 +998,7 @@ export async function handleAdminApi(
 
         if (
           !user.capabilities.canConfigureRoles &&
-          user.employee &&
-          existing.managerId !== user.employee.id
+          !technicianManagedByUser(existing, user)
         ) {
           return jsonResponse(403, { error: 'Fuera de tu equipo' }, origin);
         }
@@ -993,21 +1040,9 @@ export async function handleAdminApi(
 
           if (
             !user.capabilities.canConfigureRoles &&
-            user.employee &&
-            existing.managerId !== user.employee.id
+            !technicianManagedByUser(existing, user)
           ) {
             return jsonResponse(403, { error: 'Fuera de tu equipo' }, origin);
-          }
-          if (
-            !user.capabilities.canConfigureRoles &&
-            user.employee &&
-            m.id === user.employee.id
-          ) {
-            return jsonResponse(
-              403,
-              { error: 'No podés editar tu propio perfil aquí' },
-              origin,
-            );
           }
 
           if (
@@ -1036,20 +1071,19 @@ export async function handleAdminApi(
             );
           }
 
-          let roleId = body.roleId ?? existing.roleId ?? SEED_ROLE_IDS.tecnico;
-          let managerId =
-            body.managerId !== undefined ? body.managerId : existing.managerId;
+          let managerEntraOid =
+            body.managerEntraOid !== undefined
+              ? body.managerEntraOid || undefined
+              : existing.managerEntraOid;
 
           if (!user.capabilities.canConfigureRoles) {
-            managerId = user.employee!.id;
-            const assignable = await assignableRoleIdsForSupervisor(user);
-            if (!assignable.has(roleId)) {
-              return jsonResponse(
-                403,
-                { error: 'No podés asignar ese rol' },
-                origin,
-              );
-            }
+            managerEntraOid = user.oid;
+          } else if (!managerEntraOid) {
+            return jsonResponse(
+              400,
+              { error: 'Seleccioná un supervisor responsable' },
+              origin,
+            );
           }
 
           let nextTelegramUserId = existing.telegramUserId;
@@ -1069,10 +1103,8 @@ export async function handleAdminApi(
             email: body.email !== undefined ? body.email : existing.email,
             telegramUserId: nextTelegramUserId,
             telegramLinkCode: nextTelegramLinkCode,
-            roleId,
-            managerId: managerId || undefined,
-            entraOid:
-              body.entraOid !== undefined ? body.entraOid || undefined : existing.entraOid,
+            roleId: SEED_ROLE_IDS.tecnico,
+            managerEntraOid,
             active: body.active ?? existing.active,
           };
           const item = await patchEntity<Employee>(
@@ -1334,7 +1366,11 @@ export async function handleAdminApi(
       const m = matchPath('/expenses/{id}/approve', path);
       if (m && method === 'POST') {
         requireCap(user, 'canApprove');
-        const body = parseBody<{ projectId?: string; ticketId?: number }>(event);
+        const body = parseBody<{
+          kind?: string;
+          projectId?: string;
+          ticketId?: number;
+        }>(event);
         const expense = await getExpenseById(m.id);
         if (!expense) return jsonResponse(404, { error: 'Not found' }, origin);
 
@@ -1351,28 +1387,44 @@ export async function handleAdminApi(
         const step = expense.approvalStep ?? 0;
         const isFinal = step >= steps.length - 1;
         const requiredRoleId = steps[step]?.approverRoleId ?? SEED_ROLE_IDS.admin;
+        const bodyKind = parseExpenseKind(body.kind);
 
         if (isFinal) {
-          if (!body.projectId?.trim()) {
-            return jsonResponse(400, { error: 'projectId is required' }, origin);
-          }
-          const project = await getItem<Project>({
-            TableName: TABLE_NAMES.projects,
-            Key: { id: body.projectId },
-          });
-          if (!project || !project.active) {
+          const kind = bodyKind ?? expense.kind;
+          if (!kind) {
             return jsonResponse(
               400,
-              { error: 'Invalid or inactive project' },
+              { error: 'kind is required (PROYECTO or SERVICIO)' },
               origin,
             );
           }
-          if (project.clientId !== expense.clientId) {
-            return jsonResponse(
-              400,
-              { error: 'Project does not belong to expense client' },
-              origin,
-            );
+
+          let project: Project | undefined;
+          const projectIdTrim = body.projectId?.trim();
+          if (projectIdTrim) {
+            project = await getItem<Project>({
+              TableName: TABLE_NAMES.projects,
+              Key: { id: projectIdTrim },
+            });
+            if (!project || !project.active) {
+              return jsonResponse(
+                400,
+                { error: 'Invalid or inactive project' },
+                origin,
+              );
+            }
+            if (project.clientId !== expense.clientId) {
+              return jsonResponse(
+                400,
+                { error: 'Project does not belong to expense client' },
+                origin,
+              );
+            }
+          } else if (expense.projectId) {
+            project = await getItem<Project>({
+              TableName: TABLE_NAMES.projects,
+              Key: { id: expense.projectId },
+            });
           }
 
           const clientEntity = await getItem<Client>({
@@ -1408,7 +1460,8 @@ export async function handleAdminApi(
                 `Comercio: ${expense.merchant ?? '—'}`,
                 `Fecha comprobante: ${expense.receiptDate ?? '—'}`,
                 `Cliente: ${clientEntity?.name ?? expense.clientId}`,
-                `Proyecto: ${project.name}`,
+                `Tipo: ${kind === 'SERVICIO' ? 'Servicio' : 'Proyecto'}`,
+                `Proyecto: ${project?.name ?? '—'}`,
                 `Motivo: ${expense.description ?? '—'}`,
               ];
               const followupId = await addTicketFollowup(
@@ -1448,7 +1501,8 @@ export async function handleAdminApi(
           ];
           const updated = await updateExpense(m.id, {
             status: 'APPROVED',
-            projectId: project.id,
+            kind,
+            ...(project ? { projectId: project.id } : {}),
             reviewedAt: ts,
             reviewedBy: actorId(user),
             approvalStep: step,
@@ -1477,6 +1531,7 @@ export async function handleAdminApi(
           status: 'PENDING',
           approvalStep: step + 1,
           approvalHistory: history,
+          ...(bodyKind ? { kind: bodyKind } : {}),
           projectId: body.projectId?.trim() || expense.projectId,
         });
         return jsonResponse(200, updated, origin);
@@ -1584,6 +1639,7 @@ export async function handleAdminApi(
         periodFrom?: string;
         periodTo?: string;
         expenseIds?: string[];
+        autoClose?: boolean;
       }>(event);
       if (!body.periodFrom || !body.periodTo) {
         return jsonResponse(
@@ -1609,19 +1665,25 @@ export async function handleAdminApi(
         expenses.push(e);
       }
 
+      const isAutoClose = body.autoClose === true;
+      const ts = nowIso();
+
       const batch = await createSettlementBatch({
         name: body.name,
         periodFrom: body.periodFrom,
         periodTo: body.periodTo,
-        status: 'DRAFT',
+        status: isAutoClose ? 'CLOSED' : 'DRAFT',
         expenseIds,
         totalByCurrency: sumTotals(expenses),
         createdBy: actorId(user),
+        closedBy: isAutoClose ? actorId(user) : undefined,
+        closedAt: isAutoClose ? ts : undefined,
       });
 
       for (const e of expenses) {
         await updateExpense(e.id, {
-          status: 'IN_LIQUIDATION',
+          status: isAutoClose ? 'PAID' : 'IN_LIQUIDATION',
+          paidAt: isAutoClose ? ts : undefined,
           settlementBatchId: batch.id,
         });
       }
@@ -1723,7 +1785,7 @@ export async function handleAdminApi(
       }
     }
     {
-      const m = matchPath('/settlements/{id}/export.csv', path);
+      const m = matchPath('/settlements/{id}/export.xlsx', path) || matchPath('/settlements/{id}/export.csv', path);
       if (m && method === 'GET') {
         requireCap(user, 'canLiquidate');
         const batch = await getSettlementBatchById(m.id);
@@ -1734,8 +1796,18 @@ export async function handleAdminApi(
           if (e) expenses.push(e);
         }
         const lookups = await buildBandejaLookups();
-        const csv = expensesToBandejaCsv(expenses, lookups);
-        return textResponse(200, csv, origin, 'text/csv; charset=utf-8');
+        if (path.endsWith('.csv')) {
+          const csv = expensesToBandejaCsv(expenses, lookups);
+          return textResponse(200, csv, origin, 'text/csv; charset=utf-8');
+        }
+        const xlsx = await expensesToBandejaXlsx(expenses, lookups);
+        return binaryResponse(
+          200,
+          xlsx,
+          origin,
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          `liquidacion-${m.id}.xlsx`,
+        );
       }
     }
 
@@ -1751,6 +1823,7 @@ export async function handleAdminApi(
       const items = await listExpenses({
         clientId: qs.clientId,
         projectId: qs.projectId,
+        kind: qs.kind,
         from: qs.from,
         to: qs.to,
       });
@@ -1765,6 +1838,10 @@ export async function handleAdminApi(
       } as Record<ExpenseStatus, { count: number; total: number }>;
       const byClient: Record<string, { count: number; total: number }> = {};
       const byProject: Record<string, { count: number; total: number }> = {};
+      const byKind: Record<ClientKind, { count: number; total: number }> = {
+        PROYECTO: { count: 0, total: 0 },
+        SERVICIO: { count: 0, total: 0 },
+      };
 
       for (const e of items) {
         byStatus[e.status] ??= { count: 0, total: 0 };
@@ -1778,16 +1855,23 @@ export async function handleAdminApi(
           byProject[e.projectId].count += 1;
           byProject[e.projectId].total += e.amount;
         }
+        if (e.kind === 'PROYECTO' || e.kind === 'SERVICIO') {
+          byKind[e.kind].count += 1;
+          byKind[e.kind].total += e.amount;
+        }
       }
 
       return jsonResponse(
         200,
-        { totalExpenses: items.length, byStatus, byClient, byProject },
+        { totalExpenses: items.length, byStatus, byClient, byProject, byKind },
         origin,
       );
     }
 
-    if (method === 'GET' && path === '/reports/export.csv') {
+    if (
+      method === 'GET' &&
+      (path === '/reports/export.xlsx' || path === '/reports/export.csv')
+    ) {
       if (
         !user.capabilities.canApprove &&
         !user.capabilities.canLiquidate &&
@@ -1799,13 +1883,24 @@ export async function handleAdminApi(
         status: qs.status,
         clientId: qs.clientId,
         projectId: qs.projectId,
+        kind: qs.kind,
         technicianId: qs.technicianId,
         from: qs.from,
         to: qs.to,
       });
       const lookups = await buildBandejaLookups();
-      const csv = expensesToBandejaCsv(items, lookups);
-      return textResponse(200, csv, origin, 'text/csv; charset=utf-8');
+      if (path.endsWith('.csv')) {
+        const csv = expensesToBandejaCsv(items, lookups);
+        return textResponse(200, csv, origin, 'text/csv; charset=utf-8');
+      }
+      const xlsx = await expensesToBandejaXlsx(items, lookups);
+      return binaryResponse(
+        200,
+        xlsx,
+        origin,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'reporte-viaticos.xlsx',
+      );
     }
 
     return jsonResponse(404, { error: 'Not Found' }, origin);

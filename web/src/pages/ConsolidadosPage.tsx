@@ -23,12 +23,13 @@ import { useApi } from '../api/useApi';
 import { statusLabels } from '../theme';
 import type {
   Client,
+  ClientKind,
   ExpenseStatus,
   ListResponse,
   Project,
   SummaryReport,
 } from '../types';
-import { formatMoney } from '../types';
+import { CLIENT_KIND_LABELS, formatMoney } from '../types';
 
 export function ConsolidadosPage() {
   const api = useApi();
@@ -36,6 +37,7 @@ export function ConsolidadosPage() {
   const [to, setTo] = useState<Dayjs | null>(dayjs());
   const [clientId, setClientId] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [kind, setKind] = useState<'' | ClientKind>('');
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [report, setReport] = useState<SummaryReport | null>(null);
@@ -59,8 +61,9 @@ export function ConsolidadosPage() {
     if (to) params.set('to', to.format('YYYY-MM-DD'));
     if (clientId) params.set('clientId', clientId);
     if (projectId) params.set('projectId', projectId);
+    if (kind) params.set('kind', kind);
     return params.toString();
-  }, [from, to, clientId, projectId]);
+  }, [from, to, clientId, projectId, kind]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,10 +93,10 @@ export function ConsolidadosPage() {
     [projects],
   );
 
-  const exportCsv = async () => {
+  const exportXlsx = async () => {
     await api.download(
-      `/reports/export.csv?${queryString}`,
-      `viaticos-${dayjs().format('YYYY-MM-DD')}.csv`,
+      `/reports/export.xlsx?${queryString}`,
+      `viaticos-${dayjs().format('YYYY-MM-DD')}.xlsx`,
     );
   };
 
@@ -165,13 +168,25 @@ export function ConsolidadosPage() {
                 ))}
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Tipo</InputLabel>
+            <Select
+              label="Tipo"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as '' | ClientKind)}
+            >
+              <MenuItem value="">Todos</MenuItem>
+              <MenuItem value="PROYECTO">Proyecto</MenuItem>
+              <MenuItem value="SERVICIO">Servicio</MenuItem>
+            </Select>
+          </FormControl>
           <Button
             variant="outlined"
             startIcon={<DownloadIcon />}
-            onClick={() => void exportCsv()}
+            onClick={() => void exportXlsx()}
             sx={{ alignSelf: { md: 'center' } }}
           >
-            Exportar CSV
+            Exportar Excel
           </Button>
         </Stack>
 
@@ -188,6 +203,28 @@ export function ConsolidadosPage() {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {formatMoney(report?.byStatus[status]?.total ?? 0)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        <Typography variant="h6" gutterBottom>
+          Por tipo
+        </Typography>
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {(['PROYECTO', 'SERVICIO'] as ClientKind[]).map((k) => (
+            <Grid item xs={12} sm={6} md={4} key={k}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1">
+                    {CLIENT_KIND_LABELS[k]}
+                  </Typography>
+                  <Typography variant="body2">
+                    {loading
+                      ? '…'
+                      : `${report?.byKind?.[k]?.count ?? 0} gastos · ${formatMoney(report?.byKind?.[k]?.total ?? 0)}`}
                   </Typography>
                 </CardContent>
               </Card>

@@ -60,7 +60,11 @@ export interface Employee {
   /** 6-char code (a-z0-9) for bot self-linking; cleared after link. */
   telegramLinkCode?: string;
   roleId: string;
+  /** @deprecated Prefer managerEntraOid (Entra Object ID of supervisor). */
   managerId?: string;
+  /** Entra Object ID of the assigned supervisor (jefe). */
+  managerEntraOid?: string;
+  /** @deprecated Panel access is via Entra groups; not used for new technicians. */
   entraOid?: string;
   active: boolean;
   createdAt: string;
@@ -116,6 +120,8 @@ export interface Expense {
   technicianId: string;
   /** Set by admin on final approve; absent while PENDING from bot. */
   projectId?: string;
+  /** Clasificación Proyecto/Servicio elegida al aprobar. */
+  kind?: ClientKind;
   clientId: string;
   motiveId?: string;
   locationId?: string;
@@ -237,6 +243,7 @@ export const GSI_NAMES = {
   techniciansByLinkCode: 'telegram-link-code-index',
   techniciansByEntraOid: 'entra-oid-index',
   techniciansByManagerId: 'manager-id-index',
+  techniciansByManagerEntraOid: 'manager-entra-oid-index',
   projectsByClientId: 'client-id-index',
   expenseMessagesByExpenseId: 'expense-id-index',
 } as const;

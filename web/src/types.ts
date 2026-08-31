@@ -39,12 +39,25 @@ export interface MeResponse {
   name?: string;
   email?: string;
   isBootstrapAdmin: boolean;
-  employee?: Employee;
+  isSupervisorGroupMember?: boolean;
+  panelRoleId?: string;
+  panelRoleLabel?: string;
   role?: Role;
   capabilities: RoleCapabilities;
 }
 
+export interface EntraSupervisor {
+  oid: string;
+  name: string;
+  email?: string;
+}
+
 export type ClientKind = 'PROYECTO' | 'SERVICIO';
+
+export const CLIENT_KIND_LABELS: Record<ClientKind, string> = {
+  PROYECTO: 'Proyecto',
+  SERVICIO: 'Servicio',
+};
 
 export interface Client {
   id: string;
@@ -102,7 +115,10 @@ export interface Employee {
   telegramUserId?: string;
   telegramLinkCode?: string;
   roleId: string;
+  /** @deprecated Legacy supervisor employee id */
   managerId?: string;
+  managerEntraOid?: string;
+  /** @deprecated Panel access via Entra groups */
   entraOid?: string;
   active: boolean;
   createdAt: string;
@@ -123,6 +139,8 @@ export interface Expense {
   id: string;
   technicianId: string;
   projectId?: string;
+  /** Clasificación Proyecto/Servicio elegida al aprobar. */
+  kind?: ClientKind;
   clientId: string;
   motiveId?: string;
   locationId?: string;
@@ -209,6 +227,7 @@ export interface SummaryReport {
   byStatus: Record<string, { count: number; total: number }>;
   byClient: Record<string, { count: number; total: number }>;
   byProject: Record<string, { count: number; total: number }>;
+  byKind: Record<string, { count: number; total: number }>;
 }
 
 export interface ListResponse<T> {

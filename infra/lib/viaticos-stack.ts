@@ -106,6 +106,11 @@ export class ViaticosStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
     techniciansTable.addGlobalSecondaryIndex({
+      indexName: GSI_NAMES.techniciansByManagerEntraOid,
+      partitionKey: { name: 'managerEntraOid', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+    techniciansTable.addGlobalSecondaryIndex({
       indexName: GSI_NAMES.techniciansByLinkCode,
       partitionKey: { name: 'telegramLinkCode', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
@@ -432,7 +437,7 @@ export class ViaticosStack extends cdk.Stack {
       serviceToken: setWebhookProvider.serviceToken,
       properties: {
         WebhookUrl: webhookUrl,
-        Version: '4',
+        Version: '5',
         CommandsVersion: '2',
       },
     });

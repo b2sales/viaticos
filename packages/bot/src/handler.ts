@@ -157,61 +157,73 @@ async function handleUnlinkedUser(
 ): Promise<void> {
   const session = await getBotSession(telegramUserId);
   const attempts = linkAttemptsFromSession(session);
+  const text = update.message?.text?.trim();
+
+  if (text) {
+    const code = normalizeTelegramLinkCode(text);
+
+    if (isValidTelegramLinkCode(code)) {
+      const employee = await getEmployeeByLinkCode(code);
+      if (
+        employee?.active &&
+        employee.telegramLinkCode &&
+        !employee.telegramUserId
+      ) {
+        try {
+          const linked = await linkEmployeeTelegram(employee.id, telegramUserId);
+          await saveBotSession(buildSession(telegramUserId, linked, 'IDLE', {}));
+          await client.sendMessage({
+            chatId,
+            text: `Hola ${linked.name}! 👋\n\n${helpText()}`,
+          });
+          return;
+        } catch {
+          // Si falló la vinculación concurrente
+        }
+      }
+
+      const nextAttempts = attempts + 1;
+      await saveBotSession(
+        buildLinkSession(telegramUserId, { linkAttempts: nextAttempts }),
+      );
+      if (nextAttempts >= MAX_LINK_CODE_ATTEMPTS) {
+        await client.sendMessage({ chatId, text: LINK_CODE_MAX_ATTEMPTS });
+      } else {
+        await client.sendMessage({ chatId, text: LINK_CODE_INVALID });
+      }
+      return;
+    }
+
+    if (session?.state === 'AWAITING_LINK_CODE' && !text.startsWith('/')) {
+      const nextAttempts = attempts + 1;
+      await saveBotSession(
+        buildLinkSession(telegramUserId, { linkAttempts: nextAttempts }),
+      );
+      if (nextAttempts >= MAX_LINK_CODE_ATTEMPTS) {
+        await client.sendMessage({ chatId, text: LINK_CODE_MAX_ATTEMPTS });
+      } else {
+        await client.sendMessage({ chatId, text: LINK_CODE_INVALID_FORMAT });
+      }
+      return;
+    }
+
+    if (attempts >= MAX_LINK_CODE_ATTEMPTS) {
+      await client.sendMessage({
+        chatId,
+        text: LINK_CODE_MAX_ATTEMPTS,
+      });
+      return;
+    }
+
+    await promptLinkCode(client, chatId, telegramUserId, session);
+    return;
+  }
 
   if (attempts >= MAX_LINK_CODE_ATTEMPTS) {
     await client.sendMessage({
       chatId,
       text: LINK_CODE_MAX_ATTEMPTS,
     });
-    return;
-  }
-
-  const text = update.message?.text?.trim();
-
-  if (text) {
-    const code = normalizeTelegramLinkCode(text);
-    const shouldTryCode =
-      session?.state === 'AWAITING_LINK_CODE' || isValidTelegramLinkCode(code);
-
-    if (shouldTryCode) {
-      if (!isValidTelegramLinkCode(code)) {
-        await saveBotSession(
-          buildLinkSession(telegramUserId, { linkAttempts: attempts + 1 }),
-        );
-        await client.sendMessage({ chatId, text: LINK_CODE_INVALID_FORMAT });
-        return;
-      }
-
-      const employee = await getEmployeeByLinkCode(code);
-      if (
-        !employee?.active ||
-        !employee.telegramLinkCode ||
-        employee.telegramUserId
-      ) {
-        await saveBotSession(
-          buildLinkSession(telegramUserId, { linkAttempts: attempts + 1 }),
-        );
-        await client.sendMessage({ chatId, text: LINK_CODE_INVALID });
-        return;
-      }
-
-      try {
-        const linked = await linkEmployeeTelegram(employee.id, telegramUserId);
-        await saveBotSession(buildSession(telegramUserId, linked, 'IDLE', {}));
-        await client.sendMessage({
-          chatId,
-          text: `Hola ${linked.name}! 👋\n\n${helpText()}`,
-        });
-      } catch {
-        await saveBotSession(
-          buildLinkSession(telegramUserId, { linkAttempts: attempts + 1 }),
-        );
-        await client.sendMessage({ chatId, text: LINK_CODE_INVALID });
-      }
-      return;
-    }
-
-    await promptLinkCode(client, chatId, telegramUserId, session);
     return;
   }
 
@@ -222,7 +234,7 @@ async function handleUnlinkedUser(
   if (session?.state !== 'AWAITING_LINK_CODE') {
     await saveBotSession(
       buildLinkSession(telegramUserId, {
-        linkAttempts: linkAttemptsFromSession(session),
+        linkAttempts: attempts,
       }),
     );
   }

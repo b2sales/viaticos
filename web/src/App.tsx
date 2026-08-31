@@ -9,7 +9,7 @@ import { Layout } from './components/Layout';
 import { BandejaPage } from './pages/BandejaPage';
 import { ClientesPage } from './pages/ClientesPage';
 import { ConsolidadosPage } from './pages/ConsolidadosPage';
-import { EmpleadosPage } from './pages/EmpleadosPage';
+import { TecnicosPage } from './pages/TecnicosPage';
 import { LiquidacionPage } from './pages/LiquidacionPage';
 import { LoginPage } from './pages/LoginPage';
 import { NoPermissionPage } from './pages/NoPermissionPage';
@@ -64,7 +64,7 @@ function AppRoutes() {
       : capabilities.canManageMasters
         ? '/clientes'
         : capabilities.canManageTeam
-          ? '/empleados'
+          ? '/tecnicos'
           : capabilities.canConfigureRoles
             ? '/roles'
             : '/';
@@ -92,7 +92,7 @@ function AppRoutes() {
           </>
         )}
         {(capabilities.canManageTeam || capabilities.canConfigureRoles) && (
-          <Route path="empleados" element={<EmpleadosPage />} />
+          <Route path="tecnicos" element={<TecnicosPage />} />
         )}
         {capabilities.canConfigureRoles && (
           <Route path="roles" element={<RolesPage />} />
@@ -100,7 +100,7 @@ function AppRoutes() {
         {capabilities.canLiquidate && (
           <Route path="liquidacion" element={<LiquidacionPage />} />
         )}
-        <Route path="tecnicos" element={<Navigate to="/empleados" replace />} />
+        <Route path="empleados" element={<Navigate to="/tecnicos" replace />} />
         <Route path="*" element={<Navigate to={defaultPath} replace />} />
       </Route>
     </Routes>

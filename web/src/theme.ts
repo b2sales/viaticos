@@ -38,8 +38,8 @@ export const statusColors: Record<string, 'default' | 'warning' | 'info' | 'succ
 export const statusLabels: Record<string, string> = {
   PENDING: 'Pendiente',
   NEEDS_INFO: 'Info requerida',
-  APPROVED: 'Aprobado',
+  APPROVED: 'Pendiente liquidación',
   REJECTED: 'Rechazado',
   IN_LIQUIDATION: 'En liquidación',
-  PAID: 'Pagado',
+  PAID: 'Liquidado',
 };

@@ -4,6 +4,7 @@ const tenantId = import.meta.env.VITE_ENTRA_TENANT_ID;
 const clientId = import.meta.env.VITE_ENTRA_CLIENT_ID;
 
 export const adminGroupId = import.meta.env.VITE_ENTRA_ADMIN_GROUP_ID;
+export const supervisorGroupId = import.meta.env.VITE_ENTRA_SUPERVISOR_GROUP_ID;
 
 export const msalInstance = new PublicClientApplication({
   auth: {

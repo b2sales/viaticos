@@ -19,10 +19,14 @@ import {
   DialogTitle,
   Divider,
   FormControl,
+  FormControlLabel,
+  FormLabel,
   IconButton,
   InputLabel,
   Link,
   MenuItem,
+  Radio,
+  RadioGroup,
   Select,
   Stack,
   TextField,
@@ -34,6 +38,7 @@ import { useApi } from '../api/useApi';
 import { statusColors, statusLabels } from '../theme';
 import type {
   Client,
+  ClientKind,
   ExpenseDetail,
   ExpenseMotive,
   ExpenseUpdateBody,
@@ -43,7 +48,7 @@ import type {
   Location,
   Project,
 } from '../types';
-import { formatDate, formatDateTime, formatMoney } from '../types';
+import { CLIENT_KIND_LABELS, formatDate, formatDateTime, formatMoney } from '../types';
 
 interface ExpenseDetailDialogProps {
   expenseId: string | null;
@@ -82,6 +87,7 @@ export function ExpenseDetailDialog({
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedKind, setSelectedKind] = useState<ClientKind | ''>('');
   const [ticketOptions, setTicketOptions] = useState<GlpiTicket[]>([]);
   const [ticketQuery, setTicketQuery] = useState('');
   const [selectedTicket, setSelectedTicket] = useState<GlpiTicket | null>(null);
@@ -130,6 +136,7 @@ export function ExpenseDetailDialog({
       const data = await api.get<ExpenseDetail>(`/expenses/${expenseId}`);
       setExpense(data);
       setSelectedProjectId(data.projectId ?? '');
+      setSelectedKind(data.kind ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar');
     } finally {
@@ -152,6 +159,7 @@ export function ExpenseDetailDialog({
       setLightboxOpen(false);
       setLightboxZoom(1);
       setSelectedProjectId('');
+      setSelectedKind('');
       setSelectedTicket(null);
       setTicketQuery('');
       setTicketOptions([]);
@@ -334,6 +342,7 @@ export function ExpenseDetailDialog({
       );
       setExpense(updated);
       setSelectedProjectId(updated.projectId ?? '');
+      setSelectedKind(updated.kind ?? '');
       setEditMode(false);
       onUpdated();
     } catch (err) {
@@ -353,12 +362,16 @@ export function ExpenseDetailDialog({
         setAskOpen(false);
         setAskText('');
       } else if (action === 'approve') {
-        if (isFinalApproval && !selectedProjectId) {
-          setError('Seleccioná un proyecto para la aprobación final');
+        if (!selectedKind) {
+          setError('Seleccioná Proyecto o Servicio antes de aprobar');
           setActionLoading(false);
           return;
         }
-        const body: { projectId?: string; ticketId?: number } = {};
+        const body: {
+          kind: ClientKind;
+          projectId?: string;
+          ticketId?: number;
+        } = { kind: selectedKind };
         if (selectedProjectId) {
           body.projectId = selectedProjectId;
         }
@@ -565,6 +578,14 @@ export function ExpenseDetailDialog({
                     label="Enviado"
                     value={formatDateTime(expense.submittedAt)}
                   />
+                  <Field
+                    label="Tipo"
+                    value={
+                      expense.kind
+                        ? CLIENT_KIND_LABELS[expense.kind]
+                        : '—'
+                    }
+                  />
                   <Field label="Proyecto" value={projectLabel} />
                   <Field
                     label="Técnico"
@@ -589,6 +610,14 @@ export function ExpenseDetailDialog({
                     value={formatDateTime(expense.submittedAt)}
                   />
                   <Field label="Cliente" value={displayClientName} />
+                  <Field
+                    label="Tipo"
+                    value={
+                      expense.kind
+                        ? CLIENT_KIND_LABELS[expense.kind]
+                        : '—'
+                    }
+                  />
                   <Field label="Proyecto" value={projectLabel} />
                   <Field
                     label="Técnico"
@@ -641,28 +670,40 @@ export function ExpenseDetailDialog({
                         : ' (intermedio)'}
                     </Typography>
                   )}
-                  <FormControl
-                    fullWidth
-                    required={isFinalApproval}
-                    size="small"
-                  >
+                  <FormControl required>
+                    <FormLabel id="approve-kind-label">Tipo</FormLabel>
+                    <RadioGroup
+                      row
+                      aria-labelledby="approve-kind-label"
+                      name="approve-kind"
+                      value={selectedKind}
+                      onChange={(e) =>
+                        setSelectedKind(e.target.value as ClientKind)
+                      }
+                    >
+                      <FormControlLabel
+                        value="PROYECTO"
+                        control={<Radio size="small" />}
+                        label="Proyecto"
+                      />
+                      <FormControlLabel
+                        value="SERVICIO"
+                        control={<Radio size="small" />}
+                        label="Servicio"
+                      />
+                    </RadioGroup>
+                  </FormControl>
+                  <FormControl fullWidth size="small">
                     <InputLabel id="approve-project-label">
-                      Proyecto
-                      {isFinalApproval ? '' : ' (opcional)'}
+                      Proyecto (opcional)
                     </InputLabel>
                     <Select
                       labelId="approve-project-label"
-                      label={
-                        isFinalApproval
-                          ? 'Proyecto'
-                          : 'Proyecto (opcional)'
-                      }
+                      label="Proyecto (opcional)"
                       value={selectedProjectId}
                       onChange={(e) => setSelectedProjectId(e.target.value)}
                     >
-                      {!isFinalApproval && (
-                        <MenuItem value="">— Sin asignar aún —</MenuItem>
-                      )}
+                      <MenuItem value="">— Sin asignar —</MenuItem>
                       {projects.map((p) => (
                         <MenuItem key={p.id} value={p.id}>
                           {p.name}
@@ -824,9 +865,7 @@ export function ExpenseDetailDialog({
                 color="success"
                 startIcon={<CheckCircleIcon />}
                 onClick={() => void runAction('approve')}
-                disabled={
-                  actionLoading || (isFinalApproval && !selectedProjectId)
-                }
+                disabled={actionLoading || !selectedKind}
               >
                 {isFinalApproval ? 'Aprobar' : 'Aprobar paso'}
               </Button>

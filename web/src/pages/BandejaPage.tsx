@@ -21,7 +21,7 @@ import type {
   Project,
   Technician,
 } from '../types';
-import { formatDate, formatMoney } from '../types';
+import { formatDate, formatMoney, CLIENT_KIND_LABELS } from '../types';
 
 export function BandejaPage() {
   const api = useApi();
@@ -60,14 +60,32 @@ export function BandejaPage() {
     setLoading(true);
     setError(null);
     try {
-      if (statusFilter === 'APPROVED' || statusFilter === 'REJECTED') {
+      if (statusFilter === 'ALL') {
+        const res = await api.get<ListResponse<Expense>>('/expenses');
+        setExpenses(
+          res.items.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
+        );
+      } else if (
+        statusFilter === 'APPROVED' ||
+        statusFilter === 'REJECTED' ||
+        statusFilter === 'IN_LIQUIDATION' ||
+        statusFilter === 'PAID'
+      ) {
         const res = await api.get<ListResponse<Expense>>(
           `/expenses?status=${statusFilter}`,
         );
         setExpenses(
           res.items.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
         );
+      } else if (statusFilter === 'PENDING' || statusFilter === 'NEEDS_INFO') {
+        const res = await api.get<ListResponse<Expense>>(
+          `/expenses?status=${statusFilter}&inbox=1`,
+        );
+        setExpenses(
+          res.items.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
+        );
       } else {
+        // INBOX (PENDING + NEEDS_INFO)
         const [expPending, expNeeds] = await Promise.all([
           api.get<ListResponse<Expense>>('/expenses?status=PENDING&inbox=1'),
           api.get<ListResponse<Expense>>('/expenses?status=NEEDS_INFO&inbox=1'),
@@ -99,7 +117,14 @@ export function BandejaPage() {
         (e) => e.status === 'PENDING' || e.status === 'NEEDS_INFO',
       );
     }
-    if (statusFilter === 'PENDING' || statusFilter === 'NEEDS_INFO') {
+    if (
+      statusFilter === 'PENDING' ||
+      statusFilter === 'NEEDS_INFO' ||
+      statusFilter === 'APPROVED' ||
+      statusFilter === 'REJECTED' ||
+      statusFilter === 'IN_LIQUIDATION' ||
+      statusFilter === 'PAID'
+    ) {
       return expenses.filter((e) => e.status === statusFilter);
     }
     return expenses;
@@ -143,6 +168,13 @@ export function BandejaPage() {
       flex: 1,
       minWidth: 120,
       valueGetter: (_v, row) => lookup.clientMap[row.clientId] ?? row.clientId,
+    },
+    {
+      field: 'kind',
+      headerName: 'Tipo',
+      width: 110,
+      valueGetter: (_v, row) =>
+        row.kind ? CLIENT_KIND_LABELS[row.kind] : '—',
     },
     {
       field: 'projectId',
@@ -193,7 +225,10 @@ export function BandejaPage() {
 
   const selected = expenses.find((e) => e.id === selectedId);
   const readOnly =
-    selected?.status === 'APPROVED' || selected?.status === 'REJECTED';
+    selected?.status === 'APPROVED' ||
+    selected?.status === 'REJECTED' ||
+    selected?.status === 'IN_LIQUIDATION' ||
+    selected?.status === 'PAID';
 
   const reload = useCallback(async () => {
     await loadExpenses();
@@ -210,18 +245,21 @@ export function BandejaPage() {
         </Alert>
       )}
 
-      <FormControl size="small" sx={{ mb: 2, minWidth: 220 }}>
+      <FormControl size="small" sx={{ mb: 2, minWidth: 240 }}>
         <InputLabel>Estado</InputLabel>
         <Select
           label="Estado"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
-          <MenuItem value="INBOX">Pendientes + Info requerida</MenuItem>
-          <MenuItem value="PENDING">Pendiente</MenuItem>
+          <MenuItem value="INBOX">Pendientes de aprobación + Info requerida</MenuItem>
+          <MenuItem value="PENDING">Pendiente de aprobación</MenuItem>
           <MenuItem value="NEEDS_INFO">Info requerida</MenuItem>
-          <MenuItem value="APPROVED">Aprobado</MenuItem>
+          <MenuItem value="APPROVED">Pendiente de liquidación</MenuItem>
+          <MenuItem value="IN_LIQUIDATION">En liquidación (en lote)</MenuItem>
+          <MenuItem value="PAID">Liquidado / Pagado</MenuItem>
           <MenuItem value="REJECTED">Rechazado</MenuItem>
+          <MenuItem value="ALL">Todos los comprobantes</MenuItem>
         </Select>
       </FormControl>
 

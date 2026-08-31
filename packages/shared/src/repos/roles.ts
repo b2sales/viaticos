@@ -62,3 +62,28 @@ export function allCapabilities(value: boolean): RoleCapabilities {
 export const EMPTY_CAPABILITIES: RoleCapabilities = allCapabilities(false);
 
 export const BOOTSTRAP_CAPABILITIES: RoleCapabilities = allCapabilities(true);
+
+/** Seed capabilities mapped from Entra panel groups. */
+export const ADMIN_PANEL_CAPABILITIES: RoleCapabilities = {
+  canApprove: true,
+  canLiquidate: true,
+  canManageMasters: true,
+  canManageTeam: true,
+  canConfigureRoles: true,
+};
+
+export const SUPERVISOR_PANEL_CAPABILITIES: RoleCapabilities = {
+  canApprove: true,
+  canLiquidate: false,
+  canManageMasters: true,
+  canManageTeam: true,
+  canConfigureRoles: false,
+};
+
+export const LIQUIDACION_PANEL_CAPABILITIES: RoleCapabilities = {
+  canApprove: false,
+  canLiquidate: true,
+  canManageMasters: false,
+  canManageTeam: false,
+  canConfigureRoles: false,
+};

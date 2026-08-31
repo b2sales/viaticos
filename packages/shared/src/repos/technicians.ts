@@ -2,6 +2,7 @@ import { getItem, putItem, query, scan, updateItem } from '../dynamodb/helpers.j
 import {
   GSI_NAMES,
   TABLE_NAMES,
+  SEED_ROLE_IDS,
   type Employee,
   type Technician,
 } from '../types/index.js';
@@ -144,6 +145,32 @@ export async function listEmployeesByManagerId(
       ExpressionAttributeValues: { ':managerId': managerId },
     });
   }
+}
+
+export async function listEmployeesByManagerEntraOid(
+  managerEntraOid: string,
+): Promise<Employee[]> {
+  try {
+    return await query<Employee>({
+      TableName: TABLE_NAMES.technicians,
+      IndexName: GSI_NAMES.techniciansByManagerEntraOid,
+      KeyConditionExpression: 'managerEntraOid = :managerEntraOid',
+      ExpressionAttributeValues: { ':managerEntraOid': managerEntraOid },
+    });
+  } catch {
+    return scan<Employee>({
+      TableName: TABLE_NAMES.technicians,
+      FilterExpression: 'managerEntraOid = :managerEntraOid',
+      ExpressionAttributeValues: { ':managerEntraOid': managerEntraOid },
+    });
+  }
+}
+
+export async function listTechnicians(): Promise<Employee[]> {
+  const all = await listEmployees();
+  return all.filter(
+    (e) => e.roleId === SEED_ROLE_IDS.tecnico || !e.roleId,
+  );
 }
 
 export async function listEmployees(): Promise<Employee[]> {

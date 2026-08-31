@@ -24,6 +24,7 @@
     "@aws-sdk/client-textract": "^3.750.0",
     "@aws-sdk/lib-dynamodb": "^3.750.0",
     "@aws-sdk/s3-request-presigner": "^3.750.0",
+    "exceljs": "^4.4.0",
     "jose": "^6.0.8",
     "uuid": "^11.1.0"
   },

@@ -5,24 +5,30 @@ import {
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { SECRETS } from '../constants.js';
 import {
-  BOOTSTRAP_CAPABILITIES,
+  ADMIN_PANEL_CAPABILITIES,
   EMPTY_CAPABILITIES,
-  getEmployeeByEntraOid,
   getRoleById,
   ensureSeedRolesAndChains,
+  LIQUIDACION_PANEL_CAPABILITIES,
+  SUPERVISOR_PANEL_CAPABILITIES,
 } from '../repos/index.js';
-import type { Employee, Role, RoleCapabilities } from '../types/index.js';
+import { SEED_ROLE_IDS, type Role, type RoleCapabilities } from '../types/index.js';
 
 export interface EntraConfig {
   tenantId: string;
   clientId: string;
+  clientSecret?: string;
   adminGroupId: string;
+  supervisorGroupId?: string;
+  liquidacionGroupId?: string;
 }
 
 export interface VerifiedEntraUser {
   payload: JWTPayload;
   groups: string[];
-  isAdmin: boolean;
+  isAdminGroup: boolean;
+  isSupervisorGroup: boolean;
+  isLiquidacionGroup: boolean;
 }
 
 export interface AdminUser {
@@ -37,9 +43,13 @@ export interface AuthUser {
   name?: string;
   email?: string;
   groups: string[];
-  /** True when Entra Viaticos-Admins group membership grants full access. */
+  /** True when member of Viaticos-Admins (full panel access). */
   isBootstrapAdmin: boolean;
-  employee?: Employee;
+  /** Member of Viaticos-Supervisores (even if admin caps win). */
+  isSupervisorGroupMember: boolean;
+  /** Primary panel role for approval chains (admin > supervisor > liquidación). */
+  panelRoleId?: string;
+  panelRoleLabel?: string;
   role?: Role;
   capabilities: RoleCapabilities;
 }
@@ -83,7 +93,10 @@ export async function loadEntraConfig(secretName?: string): Promise<EntraConfig>
   cachedConfig = {
     tenantId: parsed.tenantId,
     clientId: parsed.clientId,
+    clientSecret: parsed.clientSecret,
     adminGroupId: parsed.adminGroupId,
+    supervisorGroupId: parsed.supervisorGroupId,
+    liquidacionGroupId: parsed.liquidacionGroupId,
   };
   return cachedConfig;
 }
@@ -94,6 +107,28 @@ function extractGroups(payload: JWTPayload): string[] {
     return groups.filter((g): g is string => typeof g === 'string');
   }
   return [];
+}
+
+function resolveGroupMembership(
+  groups: string[],
+  config: EntraConfig,
+  payload: JWTPayload,
+): Pick<
+  VerifiedEntraUser,
+  'isAdminGroup' | 'isSupervisorGroup' | 'isLiquidacionGroup'
+> {
+  const roles = Array.isArray(payload.roles)
+    ? payload.roles.filter((r): r is string => typeof r === 'string')
+    : [];
+  const isAdminGroup =
+    groups.includes(config.adminGroupId) || roles.includes('Admin');
+  const isSupervisorGroup = config.supervisorGroupId
+    ? groups.includes(config.supervisorGroupId)
+    : false;
+  const isLiquidacionGroup = config.liquidacionGroupId
+    ? groups.includes(config.liquidacionGroupId)
+    : false;
+  return { isAdminGroup, isSupervisorGroup, isLiquidacionGroup };
 }
 
 export async function verifyEntraJwt(token: string): Promise<VerifiedEntraUser> {
@@ -114,13 +149,9 @@ export async function verifyEntraJwt(token: string): Promise<VerifiedEntraUser> 
   });
 
   const groups = extractGroups(payload);
-  const roles = Array.isArray(payload.roles)
-    ? payload.roles.filter((r): r is string => typeof r === 'string')
-    : [];
-  const isAdmin =
-    groups.includes(config.adminGroupId) || roles.includes('Admin');
+  const membership = resolveGroupMembership(groups, config, payload);
 
-  return { payload, groups, isAdmin };
+  return { payload, groups, ...membership };
 }
 
 function extractBearerToken(header: string | undefined): string {
@@ -144,9 +175,47 @@ function hasAnyWebCapability(caps: RoleCapabilities): boolean {
   );
 }
 
+function resolvePanelAccess(membership: Pick<
+  VerifiedEntraUser,
+  'isAdminGroup' | 'isSupervisorGroup' | 'isLiquidacionGroup'
+>): {
+  capabilities: RoleCapabilities;
+  panelRoleId?: string;
+  panelRoleLabel?: string;
+  isBootstrapAdmin: boolean;
+} {
+  if (membership.isAdminGroup) {
+    return {
+      capabilities: { ...ADMIN_PANEL_CAPABILITIES },
+      panelRoleId: SEED_ROLE_IDS.admin,
+      panelRoleLabel: 'Admin general',
+      isBootstrapAdmin: true,
+    };
+  }
+  if (membership.isSupervisorGroup) {
+    return {
+      capabilities: { ...SUPERVISOR_PANEL_CAPABILITIES },
+      panelRoleId: SEED_ROLE_IDS.supervisor,
+      panelRoleLabel: 'Supervisor',
+      isBootstrapAdmin: false,
+    };
+  }
+  if (membership.isLiquidacionGroup) {
+    return {
+      capabilities: { ...LIQUIDACION_PANEL_CAPABILITIES },
+      panelRoleId: SEED_ROLE_IDS.liquidacion,
+      panelRoleLabel: 'Liquidación',
+      isBootstrapAdmin: false,
+    };
+  }
+  return {
+    capabilities: { ...EMPTY_CAPABILITIES },
+    isBootstrapAdmin: false,
+  };
+}
+
 /**
- * Authenticate any panel user: Entra JWT + employee role capabilities,
- * or bootstrap via Viaticos-Admins group.
+ * Authenticate panel user via Entra JWT group membership (Admins / Supervisores / Liquidación).
  */
 export async function authenticatePanelUser(
   authorizationHeader: string | undefined,
@@ -174,35 +243,32 @@ export async function authenticatePanelUser(
         ? verified.payload.email
         : undefined;
 
-  const employee = await getEmployeeByEntraOid(oid);
-  let role: Role | undefined;
-  let capabilities: RoleCapabilities = EMPTY_CAPABILITIES;
+  const access = resolvePanelAccess(verified);
 
-  if (employee?.active && employee.roleId) {
-    role = await getRoleById(employee.roleId);
-    if (role?.active) {
-      capabilities = role.capabilities;
-    }
-  }
-
-  const isBootstrapAdmin = verified.isAdmin;
-  if (isBootstrapAdmin) {
-    capabilities = { ...BOOTSTRAP_CAPABILITIES };
-  }
-
-  if (!isBootstrapAdmin && !hasAnyWebCapability(capabilities)) {
+  if (!hasAnyWebCapability(access.capabilities)) {
     throw new AuthError('Forbidden: no panel access for this user', 403);
   }
+
+  let panelRoleLabel = access.panelRoleLabel;
+  if (access.isBootstrapAdmin && verified.isSupervisorGroup) {
+    panelRoleLabel = 'Admin general (también supervisor)';
+  }
+
+  const role = access.panelRoleId
+    ? await getRoleById(access.panelRoleId)
+    : undefined;
 
   return {
     oid,
     name,
     email,
     groups: verified.groups,
-    isBootstrapAdmin,
-    employee: employee?.active ? employee : undefined,
-    role,
-    capabilities,
+    isBootstrapAdmin: access.isBootstrapAdmin,
+    isSupervisorGroupMember: verified.isSupervisorGroup,
+    panelRoleId: access.panelRoleId,
+    panelRoleLabel,
+    role: role?.active ? role : undefined,
+    capabilities: access.capabilities,
   };
 }
 
