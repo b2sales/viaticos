@@ -103,14 +103,16 @@ async function verifyWebhookSecret(event: APIGatewayProxyEventV2): Promise<boole
 async function uploadReceipt(
   technicianId: string,
   bytes: Uint8Array,
+  contentType = 'image/jpeg',
+  extension = 'jpg',
 ): Promise<string> {
-  const key = `receipts/${technicianId}/${crypto.randomUUID()}.jpg`;
+  const key = `receipts/${technicianId}/${crypto.randomUUID()}.${extension}`;
   await s3.send(
     new PutObjectCommand({
       Bucket: RECEIPTS_BUCKET,
       Key: key,
       Body: bytes,
-      ContentType: 'image/jpeg',
+      ContentType: contentType,
     }),
   );
   return key;
@@ -361,22 +363,17 @@ async function handleGastoManual(
   });
 }
 
-async function handlePhoto(
+async function handleReceiptUpload(
   client: TelegramClient,
-  update: TelegramUpdate,
+  chatId: number,
+  fileId: string,
   telegramUserId: string,
   technician: NonNullable<Awaited<ReturnType<typeof ensureTechnician>>>,
+  contentType: string,
+  extension: string,
 ): Promise<void> {
-  const message = update.message!;
-  const chatId = message.chat.id;
-  const photos = message.photo ?? [];
-  if (photos.length === 0) {
-    return;
-  }
-
-  const largest = photos[photos.length - 1];
-  const bytes = await client.downloadFileBytes(largest.file_id);
-  const receiptS3Key = await uploadReceipt(technician.id, bytes);
+  const bytes = await client.downloadFileBytes(fileId);
+  const receiptS3Key = await uploadReceipt(technician.id, bytes, contentType, extension);
 
   let rawText = '';
   let suggestion = null;
@@ -412,6 +409,81 @@ async function handlePhoto(
     ...session,
     context: { draft },
   });
+}
+
+async function handlePhoto(
+  client: TelegramClient,
+  update: TelegramUpdate,
+  telegramUserId: string,
+  technician: NonNullable<Awaited<ReturnType<typeof ensureTechnician>>>,
+): Promise<void> {
+  const message = update.message!;
+  const chatId = message.chat.id;
+  const photos = message.photo ?? [];
+  if (photos.length === 0) {
+    return;
+  }
+
+  const largest = photos[photos.length - 1];
+  await handleReceiptUpload(
+    client,
+    chatId,
+    largest.file_id,
+    telegramUserId,
+    technician,
+    'image/jpeg',
+    'jpg',
+  );
+}
+
+async function handleDocument(
+  client: TelegramClient,
+  update: TelegramUpdate,
+  telegramUserId: string,
+  technician: NonNullable<Awaited<ReturnType<typeof ensureTechnician>>>,
+): Promise<void> {
+  const message = update.message!;
+  const chatId = message.chat.id;
+  const doc = message.document;
+  if (!doc) {
+    return;
+  }
+
+  const mime = doc.mime_type?.toLowerCase() ?? '';
+  const fileName = doc.file_name?.toLowerCase() ?? '';
+
+  let contentType = 'application/octet-stream';
+  let extension = 'bin';
+
+  if (mime === 'application/pdf' || fileName.endsWith('.pdf')) {
+    contentType = 'application/pdf';
+    extension = 'pdf';
+  } else if (mime === 'image/jpeg' || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+    contentType = 'image/jpeg';
+    extension = 'jpg';
+  } else if (mime === 'image/png' || fileName.endsWith('.png')) {
+    contentType = 'image/png';
+    extension = 'png';
+  } else if (mime === 'image/webp' || fileName.endsWith('.webp')) {
+    contentType = 'image/webp';
+    extension = 'webp';
+  } else {
+    await client.sendMessage({
+      chatId,
+      text: 'Formato no compatible. Por favor enviá un archivo PDF o una foto/imagen (JPG, PNG).',
+    });
+    return;
+  }
+
+  await handleReceiptUpload(
+    client,
+    chatId,
+    doc.file_id,
+    telegramUserId,
+    technician,
+    contentType,
+    extension,
+  );
 }
 
 async function promptMotivo(
@@ -678,6 +750,18 @@ async function handleCallbackQuery(
   }
 
   if (data === 'ocr:confirm') {
+    if (draft.amount == null) {
+      await updateBotSessionState(telegramUserId, 'AWAITING_AMOUNT', {
+        ...context,
+        draft,
+      });
+      await client.sendMessage({
+        chatId,
+        text: 'No se detectó el monto del comprobante. Por favor ingresá el monto (ej: 1500 o 1.500,50):',
+        replyMarkup: cancelKeyboard(),
+      });
+      return;
+    }
     await promptMotivo(client, chatId, telegramUserId, technician, draft);
     return;
   }
@@ -1082,6 +1166,11 @@ export async function handleTelegramWebhook(
 
     if (update.message?.photo?.length) {
       await handlePhoto(client, update, telegramUserId, technician);
+      return ok();
+    }
+
+    if (update.message?.document) {
+      await handleDocument(client, update, telegramUserId, technician);
       return ok();
     }
 

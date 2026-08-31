@@ -12,7 +12,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../api/useApi';
 import { ExpenseDetailDialog } from '../components/ExpenseDetailDialog';
-import { statusColors, statusLabels } from '../theme';
+import { statusChipStyles, statusLabels } from '../theme';
 import type {
   Client,
   Expense,
@@ -134,14 +134,24 @@ export function BandejaPage() {
     {
       field: 'status',
       headerName: 'Estado',
-      width: 130,
-      renderCell: ({ value }) => (
-        <Chip
-          size="small"
-          label={statusLabels[value as string] ?? value}
-          color={statusColors[value as string] ?? 'default'}
-        />
-      ),
+      width: 150,
+      renderCell: ({ value }) => {
+        const status = value as string;
+        const style = statusChipStyles[status];
+        return (
+          <Chip
+            size="small"
+            variant="outlined"
+            label={statusLabels[status] ?? status}
+            sx={{
+              bgcolor: style?.bgcolor,
+              color: style?.color,
+              borderColor: style?.borderColor,
+              fontWeight: style?.fontWeight ?? 600,
+            }}
+          />
+        );
+      },
     },
     {
       field: 'amount',

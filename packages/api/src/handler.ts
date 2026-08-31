@@ -373,6 +373,8 @@ function filterExpenses(
   return items.filter((e) => {
     if (params.clientId && e.clientId !== params.clientId) return false;
     if (params.projectId && e.projectId !== params.projectId) return false;
+    if (params.locationId && (e.locationId ?? '__none__') !== params.locationId)
+      return false;
     if (params.technicianId && e.technicianId !== params.technicianId)
       return false;
     if (
@@ -1823,6 +1825,7 @@ export async function handleAdminApi(
       const items = await listExpenses({
         clientId: qs.clientId,
         projectId: qs.projectId,
+        locationId: qs.locationId,
         kind: qs.kind,
         from: qs.from,
         to: qs.to,
@@ -1838,6 +1841,7 @@ export async function handleAdminApi(
       } as Record<ExpenseStatus, { count: number; total: number }>;
       const byClient: Record<string, { count: number; total: number }> = {};
       const byProject: Record<string, { count: number; total: number }> = {};
+      const byLocation: Record<string, { count: number; total: number }> = {};
       const byKind: Record<ClientKind, { count: number; total: number }> = {
         PROYECTO: { count: 0, total: 0 },
         SERVICIO: { count: 0, total: 0 },
@@ -1859,11 +1863,22 @@ export async function handleAdminApi(
           byKind[e.kind].count += 1;
           byKind[e.kind].total += e.amount;
         }
+        const locKey = e.locationId || '__none__';
+        byLocation[locKey] ??= { count: 0, total: 0 };
+        byLocation[locKey].count += 1;
+        byLocation[locKey].total += e.amount;
       }
 
       return jsonResponse(
         200,
-        { totalExpenses: items.length, byStatus, byClient, byProject, byKind },
+        {
+          totalExpenses: items.length,
+          byStatus,
+          byClient,
+          byProject,
+          byKind,
+          byLocation,
+        },
         origin,
       );
     }
@@ -1883,6 +1898,7 @@ export async function handleAdminApi(
         status: qs.status,
         clientId: qs.clientId,
         projectId: qs.projectId,
+        locationId: qs.locationId,
         kind: qs.kind,
         technicianId: qs.technicianId,
         from: qs.from,

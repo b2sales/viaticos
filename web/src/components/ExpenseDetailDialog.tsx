@@ -4,6 +4,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import {
@@ -35,7 +36,7 @@ import {
 } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../api/useApi';
-import { statusColors, statusLabels } from '../theme';
+import { statusChipStyles, statusLabels } from '../theme';
 import type {
   Client,
   ClientKind,
@@ -395,6 +396,11 @@ export function ExpenseDetailDialog({
     }
   };
 
+  const isPdf = Boolean(
+    expense?.receiptS3Key?.toLowerCase().endsWith('.pdf') ||
+    expense?.receiptUrl?.toLowerCase().includes('.pdf'),
+  );
+
   const glpiTicketUrl =
     expense?.glpiTicketId != null && glpiUiBase
       ? `${glpiUiBase}/front/ticket.form.php?id=${expense.glpiTicketId}`
@@ -422,7 +428,13 @@ export function ExpenseDetailDialog({
               <Stack direction="row" spacing={1} alignItems="center">
                 <Chip
                   label={statusLabels[expense.status] ?? expense.status}
-                  color={statusColors[expense.status] ?? 'default'}
+                  variant="outlined"
+                  sx={{
+                    bgcolor: statusChipStyles[expense.status]?.bgcolor,
+                    color: statusChipStyles[expense.status]?.color,
+                    borderColor: statusChipStyles[expense.status]?.borderColor,
+                    fontWeight: statusChipStyles[expense.status]?.fontWeight ?? 600,
+                  }}
                 />
                 {!editMode && (
                   <Typography variant="h5">
@@ -762,31 +774,65 @@ export function ExpenseDetailDialog({
 
               {expense.receiptUrl && (
                 <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Comprobante
-                  </Typography>
-                  <Box
-                    component="img"
-                    src={expense.receiptUrl}
-                    alt="Comprobante"
-                    onClick={() => {
-                      setLightboxZoom(1);
-                      setLightboxOpen(true);
-                    }}
-                    sx={{
-                      maxWidth: '100%',
-                      maxHeight: 360,
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      cursor: 'zoom-in',
-                      display: 'block',
-                      '&:hover': { opacity: 0.92 },
-                    }}
-                  />
-                  <Typography variant="caption" color="text.secondary">
-                    Clic para ampliar
-                  </Typography>
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    sx={{ mb: 1 }}
+                  >
+                    <Typography variant="subtitle2">
+                      Comprobante {isPdf ? '(PDF)' : ''}
+                    </Typography>
+                    <Button
+                      size="small"
+                      startIcon={isPdf ? <PictureAsPdfIcon /> : <OpenInNewIcon />}
+                      href={expense.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Abrir en pestaña nueva
+                    </Button>
+                  </Stack>
+                  {isPdf ? (
+                    <Box
+                      component="iframe"
+                      src={expense.receiptUrl}
+                      title="Comprobante PDF"
+                      sx={{
+                        width: '100%',
+                        height: 480,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        bgcolor: 'background.paper',
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <Box
+                        component="img"
+                        src={expense.receiptUrl}
+                        alt="Comprobante"
+                        onClick={() => {
+                          setLightboxZoom(1);
+                          setLightboxOpen(true);
+                        }}
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: 360,
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          cursor: 'zoom-in',
+                          display: 'block',
+                          '&:hover': { opacity: 0.92 },
+                        }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Clic para ampliar
+                      </Typography>
+                    </>
+                  )}
                 </Box>
               )}
 

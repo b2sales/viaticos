@@ -228,6 +228,7 @@ export interface SummaryReport {
   byClient: Record<string, { count: number; total: number }>;
   byProject: Record<string, { count: number; total: number }>;
   byKind: Record<string, { count: number; total: number }>;
+  byLocation?: Record<string, { count: number; total: number }>;
 }
 
 export interface ListResponse<T> {

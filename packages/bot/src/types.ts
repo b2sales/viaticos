@@ -18,12 +18,20 @@ export interface TelegramChat {
   type: string;
 }
 
+export interface TelegramDocument {
+  file_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+}
+
 export interface TelegramMessage {
   message_id: number;
   chat: TelegramChat;
   from?: TelegramUser;
   text?: string;
   photo?: Array<{ file_id: string; width: number; height: number }>;
+  document?: TelegramDocument;
   reply_to_message?: TelegramMessage;
 }
 
@@ -143,6 +151,8 @@ export function formatOcrSummary(draft: ExpenseDraft): string {
   const lines = ['Datos detectados del comprobante:'];
   if (draft.amount != null) {
     lines.push(`• Monto: ${formatCurrency(draft.amount, draft.currency ?? 'ARS')}`);
+  } else {
+    lines.push('• Monto: (no detectado, ingresalo con ✏️ Monto)');
   }
   if (draft.date) {
     lines.push(`• Fecha: ${draft.date}`);
@@ -278,7 +288,7 @@ export function helpText(): string {
     '/detalle — Detalle paginado del mes',
     '/cancelar — Cancelar carga en curso',
     '',
-    '📷 También podés enviar una foto del ticket para cargar un gasto con OCR.',
+    '📷 También podés enviar una foto o PDF del comprobante para cargar un gasto con OCR.',
     'El proyecto lo asigna administración al aprobar el gasto.',
   ].join('\n');
 }

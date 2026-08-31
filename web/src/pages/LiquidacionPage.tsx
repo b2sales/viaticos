@@ -714,24 +714,39 @@ export function LiquidacionPage() {
             {photoLoading ? (
               <CircularProgress sx={{ color: 'common.white' }} />
             ) : photoUrl ? (
-              <Box
-                component="img"
-                src={photoUrl}
-                alt="Comprobante"
-                onClick={() => setPhotoZoom((z) => (z >= 3 ? 1 : Number((z + 0.5).toFixed(1))))}
-                sx={{
-                  maxWidth: photoZoom === 1 ? '100%' : 'none',
-                  maxHeight: photoZoom === 1 ? '100%' : 'none',
-                  width: photoZoom === 1 ? 'auto' : `${photoZoom * 100}%`,
-                  height: 'auto',
-                  cursor: photoZoom >= 3 ? 'zoom-out' : 'zoom-in',
-                  userSelect: 'none',
-                  display: 'block',
-                }}
-              />
+              photoUrl.toLowerCase().includes('.pdf') ? (
+                <Box
+                  component="iframe"
+                  src={photoUrl}
+                  title="Comprobante PDF"
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    bgcolor: 'background.paper',
+                    borderRadius: 1,
+                  }}
+                />
+              ) : (
+                <Box
+                  component="img"
+                  src={photoUrl}
+                  alt="Comprobante"
+                  onClick={() => setPhotoZoom((z) => (z >= 3 ? 1 : Number((z + 0.5).toFixed(1))))}
+                  sx={{
+                    maxWidth: photoZoom === 1 ? '100%' : 'none',
+                    maxHeight: photoZoom === 1 ? '100%' : 'none',
+                    width: photoZoom === 1 ? 'auto' : `${photoZoom * 100}%`,
+                    height: 'auto',
+                    cursor: photoZoom >= 3 ? 'zoom-out' : 'zoom-in',
+                    userSelect: 'none',
+                    display: 'block',
+                  }}
+                />
+              )
             ) : (
               <Typography variant="body1" color="grey.400">
-                No hay imagen disponible para este comprobante.
+                No hay comprobante disponible.
               </Typography>
             )}
           </Box>

@@ -1,4 +1,6 @@
 import DownloadIcon from '@mui/icons-material/Download';
+import SearchIcon from '@mui/icons-material/Search';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import {
   Alert,
   Box,
@@ -7,10 +9,19 @@ import {
   CardContent,
   FormControl,
   Grid,
+  InputAdornment,
   InputLabel,
   MenuItem,
+  Paper,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -26,6 +37,7 @@ import type {
   ClientKind,
   ExpenseStatus,
   ListResponse,
+  Location,
   Project,
   SummaryReport,
 } from '../types';
@@ -37,21 +49,28 @@ export function ConsolidadosPage() {
   const [to, setTo] = useState<Dayjs | null>(dayjs());
   const [clientId, setClientId] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [kind, setKind] = useState<'' | ClientKind>('');
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [report, setReport] = useState<SummaryReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [showAllLocations, setShowAllLocations] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+
   useEffect(() => {
     void (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, l] = await Promise.all([
         api.get<ListResponse<Client>>('/clients'),
         api.get<ListResponse<Project>>('/projects'),
+        api.get<ListResponse<Location>>('/locations'),
       ]);
       setClients(c.items);
       setProjects(p.items);
+      setLocations(l.items);
     })();
   }, [api]);
 
@@ -61,9 +80,10 @@ export function ConsolidadosPage() {
     if (to) params.set('to', to.format('YYYY-MM-DD'));
     if (clientId) params.set('clientId', clientId);
     if (projectId) params.set('projectId', projectId);
+    if (locationId) params.set('locationId', locationId);
     if (kind) params.set('kind', kind);
     return params.toString();
-  }, [from, to, clientId, projectId, kind]);
+  }, [from, to, clientId, projectId, locationId, kind]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,6 +112,40 @@ export function ConsolidadosPage() {
     () => Object.fromEntries(projects.map((p) => [p.id, p.name])),
     [projects],
   );
+  const locationMap = useMemo(
+    () => Object.fromEntries(locations.map((l) => [l.id, l.name])),
+    [locations],
+  );
+
+  const locationEntries = useMemo(() => {
+    if (!report?.byLocation) return [];
+    return Object.entries(report.byLocation)
+      .map(([id, data]) => ({
+        id,
+        name: id === '__none__' ? 'Sin ubicación' : (locationMap[id] ?? id),
+        count: data.count,
+        total: data.total,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [report?.byLocation, locationMap]);
+
+  const totalLocationExpense = useMemo(
+    () => locationEntries.reduce((acc, curr) => acc + curr.total, 0),
+    [locationEntries],
+  );
+
+  const top5Locations = useMemo(
+    () => locationEntries.slice(0, 5),
+    [locationEntries],
+  );
+
+  const filteredLocationsTable = useMemo(() => {
+    const q = locationSearch.toLowerCase().trim();
+    if (!q) return locationEntries;
+    return locationEntries.filter((item) =>
+      item.name.toLowerCase().includes(q),
+    );
+  }, [locationEntries, locationSearch]);
 
   const exportXlsx = async () => {
     await api.download(
@@ -120,7 +174,13 @@ export function ConsolidadosPage() {
           </Alert>
         )}
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+        <Stack
+          direction="row"
+          flexWrap="wrap"
+          gap={2}
+          sx={{ mb: 3 }}
+          alignItems="center"
+        >
           <DatePicker
             label="Desde"
             value={from}
@@ -133,7 +193,7 @@ export function ConsolidadosPage() {
             onChange={setTo}
             slotProps={{ textField: { size: 'small' } }}
           />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Cliente</InputLabel>
             <Select
               label="Cliente"
@@ -151,7 +211,7 @@ export function ConsolidadosPage() {
               ))}
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Proyecto</InputLabel>
             <Select
               label="Proyecto"
@@ -169,6 +229,21 @@ export function ConsolidadosPage() {
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Ubicación</InputLabel>
+            <Select
+              label="Ubicación"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+            >
+              <MenuItem value="">Todas</MenuItem>
+              {locations.map((l) => (
+                <MenuItem key={l.id} value={l.id}>
+                  {l.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Tipo</InputLabel>
             <Select
               label="Tipo"
@@ -184,7 +259,6 @@ export function ConsolidadosPage() {
             variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={() => void exportXlsx()}
-            sx={{ alignSelf: { md: 'center' } }}
           >
             Exportar Excel
           </Button>
@@ -255,7 +329,7 @@ export function ConsolidadosPage() {
         <Typography variant="h6" gutterBottom>
           Por proyecto
         </Typography>
-        <Grid container spacing={2}>
+        <Grid container spacing={2} sx={{ mb: 3 }}>
           {Object.entries(report?.byProject ?? {}).map(([id, data]) => (
             <Grid item xs={12} sm={6} md={4} key={id}>
               <Card variant="outlined">
@@ -271,6 +345,153 @@ export function ConsolidadosPage() {
             </Grid>
           ))}
         </Grid>
+
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 1, mt: 2 }}
+        >
+          <Typography variant="h6">
+            Por ubicación {top5Locations.length > 0 && '(Top 5 por gasto)'}
+          </Typography>
+          {locationEntries.length > 0 && (
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<TableChartIcon />}
+              onClick={() => setShowAllLocations((prev) => !prev)}
+            >
+              {showAllLocations
+                ? 'Ocultar tabla completa'
+                : `Ver todas las ubicaciones (${locationEntries.length})`}
+            </Button>
+          )}
+        </Stack>
+
+        {loading ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Cargando datos por ubicación…
+          </Typography>
+        ) : top5Locations.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            No hay gastos registrados por ubicación en el período seleccionado.
+          </Typography>
+        ) : (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {top5Locations.map((item, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={item.id}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography
+                      variant="overline"
+                      color="primary.main"
+                      sx={{ fontWeight: 600 }}
+                    >
+                      #{idx + 1} en gastos
+                    </Typography>
+                    <Typography variant="subtitle1" noWrap title={item.name}>
+                      {item.name}
+                    </Typography>
+                    <Typography variant="body2">
+                      {item.count} gastos · {formatMoney(item.total)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+
+        {showAllLocations && (
+          <Box sx={{ mb: 4, mt: 1 }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              spacing={2}
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Todas las ubicaciones ({locationEntries.length})
+              </Typography>
+              <TextField
+                size="small"
+                placeholder="Filtrar por ubicación…"
+                value={locationSearch}
+                onChange={(e) => setLocationSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ maxWidth: { sm: 300 } }}
+              />
+            </Stack>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Ubicación</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      Comprobantes
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      Monto total
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      % del total
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredLocationsTable.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        align="center"
+                        sx={{ py: 3, color: 'text.secondary' }}
+                      >
+                        No se encontraron ubicaciones que coincidan con la
+                        búsqueda.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredLocationsTable.map((item, index) => {
+                      const percentage =
+                        totalLocationExpense > 0
+                          ? ((item.total / totalLocationExpense) * 100).toFixed(
+                              1,
+                            )
+                          : '0.0';
+                      return (
+                        <TableRow key={item.id} hover>
+                          <TableCell sx={{ color: 'text.secondary', width: 50 }}>
+                            {index + 1}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 500 }}>
+                            {item.name}
+                          </TableCell>
+                          <TableCell align="right">{item.count}</TableCell>
+                          <TableCell align="right">
+                            {formatMoney(item.total)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {percentage}%
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
       </Box>
     </LocalizationProvider>
   );
