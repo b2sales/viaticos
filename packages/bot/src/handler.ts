@@ -316,7 +316,7 @@ async function handleDetalle(
 
   const lines = slice.map(
     (expense, index) =>
-      `${safePage * PAGE_SIZE + index + 1}. ${expense.receiptDate ?? expense.submittedAt.slice(0, 10)} — ${formatCurrency(expense.amount, expense.currency)} — ${expense.status}${expense.merchant ? ` (${expense.merchant})` : ''}`,
+      `${safePage * PAGE_SIZE + index + 1}. ${expense.folio ?? '—'} — ${expense.receiptDate ?? expense.submittedAt.slice(0, 10)} — ${formatCurrency(expense.amount, expense.currency)} — ${expense.status}${expense.merchant ? ` (${expense.merchant})` : ''}`,
   );
 
   await client.sendMessage({
@@ -705,7 +705,7 @@ async function finalizeExpense(
 
   await client.sendMessage({
     chatId,
-    text: `✅ Gasto registrado (${formatCurrency(expense.amount, expense.currency)}). Estado: PENDING`,
+    text: `✅ Gasto registrado (${formatCurrency(expense.amount, expense.currency)}). ID: ${expense.folio ?? expense.id}. Estado: PENDING`,
   });
 }
 

@@ -1,5 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
@@ -37,6 +38,11 @@ function telegramStatus(row: Employee): 'linked' | 'pending' | 'none' {
   return 'none';
 }
 
+function canHardDelete(row: Employee): boolean {
+  const status = telegramStatus(row);
+  return status === 'pending' || status === 'none' || !row.active;
+}
+
 export function TecnicosPage() {
   const api = useApi();
   const { instance } = useMsal();
@@ -56,6 +62,7 @@ export function TecnicosPage() {
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [supervisorsError, setSupervisorsError] = useState<string | null>(null);
 
   const supervisorMap = useMemo(() => {
@@ -87,7 +94,8 @@ export function TecnicosPage() {
     setLoading(true);
     setError(null);
     try {
-      const empRes = await api.get<ListResponse<Employee>>('/technicians');
+      const path = isAdmin ? '/technicians' : '/technicians?scope=team';
+      const empRes = await api.get<ListResponse<Employee>>(path);
       setItems(empRes.items);
       await loadSupervisors();
     } catch (err) {
@@ -95,7 +103,7 @@ export function TecnicosPage() {
     } finally {
       setLoading(false);
     }
-  }, [api, loadSupervisors]);
+  }, [api, isAdmin, loadSupervisors]);
 
   useEffect(() => {
     void load();
@@ -176,6 +184,26 @@ export function TecnicosPage() {
     }
   };
 
+  const handleDelete = async (row: Employee) => {
+    if (
+      !window.confirm(
+        `¿Borrar a ${row.name}? Solo es posible si no tiene comprobantes.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(row.id);
+    setError(null);
+    try {
+      await api.delete(`/technicians/${row.id}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al borrar');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const columns: GridColDef<Employee>[] = [
     { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 160 },
     {
@@ -244,12 +272,29 @@ export function TecnicosPage() {
     {
       field: 'actions',
       headerName: '',
-      width: 60,
+      width: isAdmin ? 100 : 60,
       sortable: false,
       renderCell: ({ row }) => (
-        <IconButton size="small" onClick={() => openEdit(row)}>
-          <EditIcon fontSize="small" />
-        </IconButton>
+        <Stack direction="row" spacing={0}>
+          <IconButton size="small" onClick={() => openEdit(row)}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+          {isAdmin && canHardDelete(row) && (
+            <Tooltip title="Borrar usuario">
+              <IconButton
+                size="small"
+                color="error"
+                disabled={deletingId === row.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleDelete(row);
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       ),
     },
   ];

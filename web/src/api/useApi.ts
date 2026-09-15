@@ -93,6 +93,11 @@ export function useApi() {
     [request],
   );
 
+  const del = useCallback(
+    <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+    [request],
+  );
+
   const download = useCallback(
     async (path: string, filename: string) => {
       const doFetch = async (forceRefresh: boolean) => {
@@ -119,7 +124,7 @@ export function useApi() {
   );
 
   return useMemo(
-    () => ({ get, post, put, patch, download }),
-    [get, post, put, patch, download],
+    () => ({ get, post, put, patch, delete: del, download }),
+    [get, post, put, patch, del, download],
   );
 }

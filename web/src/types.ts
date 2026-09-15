@@ -137,6 +137,8 @@ export interface ApprovalHistoryEntry {
 
 export interface Expense {
   id: string;
+  /** Human-readable sequential id, e.g. V-000123. */
+  folio?: string;
   technicianId: string;
   projectId?: string;
   /** Clasificación Proyecto/Servicio elegida al aprobar. */
@@ -245,6 +247,13 @@ export function formatMoney(amount: number, currency = 'ARS'): string {
 
 export function formatDate(iso?: string): string {
   if (!iso) return '—';
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (dateOnly) {
+    const y = Number(dateOnly[1]);
+    const m = Number(dateOnly[2]);
+    const d = Number(dateOnly[3]);
+    return new Date(y, m - 1, d).toLocaleDateString('es-AR');
+  }
   return new Date(iso).toLocaleDateString('es-AR');
 }
 

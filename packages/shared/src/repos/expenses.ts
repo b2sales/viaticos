@@ -1,11 +1,21 @@
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { TIMEZONE } from '../constants.js';
-import { generateId, getItem, putItem, query, scan } from '../dynamodb/helpers.js';
+import {
+  deleteItem,
+  generateId,
+  getDocClient,
+  getItem,
+  putItem,
+  query,
+  scan,
+} from '../dynamodb/helpers.js';
 import {
   GSI_NAMES,
   TABLE_NAMES,
   type Expense,
   type ExpenseStatus,
 } from '../types/index.js';
+import { nextExpenseFolio } from './counters.js';
 
 export function getMonthKey(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -89,13 +99,32 @@ export async function getExpenseById(id: string): Promise<Expense | undefined> {
   });
 }
 
+/** True if the technician has at least one expense (any month). */
+export async function hasExpensesByTechnician(
+  technicianId: string,
+): Promise<boolean> {
+  const result = await getDocClient().send(
+    new QueryCommand({
+      TableName: TABLE_NAMES.expenses,
+      IndexName: GSI_NAMES.expensesByTechnicianMonth,
+      KeyConditionExpression: 'technicianId = :technicianId',
+      ExpressionAttributeValues: { ':technicianId': technicianId },
+      Limit: 1,
+      Select: 'COUNT',
+    }),
+  );
+  return (result.Count ?? 0) > 0;
+}
+
 export async function createExpense(
-  input: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>,
+  input: Omit<Expense, 'id' | 'folio' | 'createdAt' | 'updatedAt'>,
 ): Promise<Expense> {
   const now = new Date().toISOString();
+  const folio = await nextExpenseFolio();
   const expense: Expense = {
     ...input,
     id: generateId(),
+    folio,
     createdAt: now,
     updatedAt: now,
   };
@@ -104,6 +133,13 @@ export async function createExpense(
     Item: expense,
   });
   return expense;
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  await deleteItem({
+    TableName: TABLE_NAMES.expenses,
+    Key: { id },
+  });
 }
 
 export async function updateExpense(

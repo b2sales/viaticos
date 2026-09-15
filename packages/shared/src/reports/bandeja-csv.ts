@@ -35,6 +35,13 @@ function formatMoney(amount: number, currency = 'ARS'): string {
 
 function formatDate(iso?: string): string {
   if (!iso) return '—';
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (dateOnly) {
+    const y = Number(dateOnly[1]);
+    const m = Number(dateOnly[2]);
+    const d = Number(dateOnly[3]);
+    return new Date(y, m - 1, d).toLocaleDateString('es-AR');
+  }
   return new Date(iso).toLocaleDateString('es-AR');
 }
 
@@ -46,6 +53,7 @@ function formatGlpi(expense: Expense): string {
 
 export function bandejaCsvHeader(): string {
   return [
+    'ID',
     'Estado',
     'Monto',
     'Comercio',
@@ -75,6 +83,7 @@ export function expenseToBandejaCsvRow(
     : undefined;
 
   return [
+    csvEscape(expense.folio ?? '—'),
     csvEscape(EXPENSE_STATUS_LABELS[expense.status] ?? expense.status),
     csvEscape(formatMoney(expense.amount, expense.currency)),
     csvEscape(expense.merchant ?? '—'),

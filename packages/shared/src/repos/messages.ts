@@ -1,4 +1,10 @@
-import { generateId, putItem, query, scan } from '../dynamodb/helpers.js';
+import {
+  deleteItem,
+  generateId,
+  putItem,
+  query,
+  scan,
+} from '../dynamodb/helpers.js';
 import { GSI_NAMES, TABLE_NAMES, type ExpenseMessage } from '../types/index.js';
 
 export async function listMessagesByExpenseId(expenseId: string): Promise<ExpenseMessage[]> {
@@ -34,4 +40,19 @@ export async function createExpenseMessage(
     Item: message,
   });
   return message;
+}
+
+export async function deleteExpenseMessage(id: string): Promise<void> {
+  await deleteItem({
+    TableName: TABLE_NAMES.expenseMessages,
+    Key: { id },
+  });
+}
+
+export async function deleteMessagesByExpenseId(
+  expenseId: string,
+): Promise<number> {
+  const messages = await listMessagesByExpenseId(expenseId);
+  await Promise.all(messages.map((m) => deleteExpenseMessage(m.id)));
+  return messages.length;
 }

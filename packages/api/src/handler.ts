@@ -3,6 +3,7 @@ import type {
   APIGatewayProxyResultV2,
 } from 'aws-lambda';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -19,14 +20,19 @@ import {
   TelegramClient,
   addTicketFollowup,
   authenticatePanelUser,
+  clearBotSession,
   createExpenseMessage,
   createSettlementBatch,
+  deleteEmployee,
+  deleteExpense,
+  deleteMessagesByExpenseId,
   ensureSeedRolesAndChains,
   generateId,
   generateUniqueTelegramLinkCode,
   getApprovalChain,
   getEmployeeById,
   getExpenseById,
+  hasExpensesByTechnician,
   getClientById,
   getLocationById,
   getMotiveById,
@@ -39,7 +45,6 @@ import {
   listEmployees,
   listEmployeesByManagerEntraOid,
   listSupervisorGroupMembers,
-  listTechnicians,
   listExpensesByStatus,
   listMessagesByExpenseId,
   listRoles,
@@ -112,7 +117,7 @@ function corsHeaders(origin: string | undefined): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Content-Type': JSON_CT,
   };
 }
@@ -900,12 +905,17 @@ export async function handleAdminApi(
         throw new HttpError(403, 'Forbidden');
       }
       let items: Employee[];
-      if (user.capabilities.canConfigureRoles) {
-        items = await listTechnicians();
-      } else if (user.capabilities.canManageTeam) {
+      // Full employee list for name resolution in bandeja/liquidación/exports
+      // (includes admins/supervisors who also submit via Telegram).
+      // Team-scoped only when a supervisor manages their roster (?scope=team).
+      const scopeTeam =
+        qs.scope === 'team' &&
+        user.capabilities.canManageTeam &&
+        !user.capabilities.canConfigureRoles;
+      if (scopeTeam) {
         items = await listEmployeesByManagerEntraOid(user.oid);
       } else {
-        items = await listTechnicians();
+        items = await listEmployees();
       }
       items = items.map((e) => ({
         ...e,
@@ -1115,6 +1125,28 @@ export async function handleAdminApi(
             updates,
           );
           return jsonResponse(200, item, origin);
+        }
+        if (method === 'DELETE') {
+          if (!user.capabilities.canConfigureRoles) {
+            throw new HttpError(403, 'Forbidden');
+          }
+          const existing = await getEmployeeById(m.id);
+          if (!existing) return jsonResponse(404, { error: 'Not found' }, origin);
+          if (await hasExpensesByTechnician(m.id)) {
+            return jsonResponse(
+              409,
+              {
+                error:
+                  'Desactivá el usuario; tiene comprobantes. No se puede borrar.',
+              },
+              origin,
+            );
+          }
+          if (existing.telegramUserId) {
+            await clearBotSession(existing.telegramUserId);
+          }
+          await deleteEmployee(m.id);
+          return jsonResponse(200, { ok: true }, origin);
         }
       }
     }
@@ -1363,6 +1395,64 @@ export async function handleAdminApi(
           origin,
         );
       }
+      if (m && method === 'DELETE') {
+        if (!user.capabilities.canConfigureRoles) {
+          throw new HttpError(403, 'Forbidden');
+        }
+        const expense = await getExpenseById(m.id);
+        if (!expense) return jsonResponse(404, { error: 'Not found' }, origin);
+
+        const deletable =
+          expense.status === 'PENDING' ||
+          expense.status === 'NEEDS_INFO' ||
+          expense.status === 'REJECTED';
+        if (!deletable) {
+          return jsonResponse(
+            409,
+            {
+              error:
+                'Solo se pueden borrar gastos pendientes, con info requerida o rechazados',
+            },
+            origin,
+          );
+        }
+
+        await deleteMessagesByExpenseId(m.id);
+
+        if (expense.receiptS3Key && RECEIPTS_BUCKET) {
+          try {
+            const s3 = new S3Client({});
+            await s3.send(
+              new DeleteObjectCommand({
+                Bucket: RECEIPTS_BUCKET,
+                Key: expense.receiptS3Key,
+              }),
+            );
+          } catch (err) {
+            console.error('Failed to delete receipt from S3', err);
+          }
+        }
+
+        await deleteExpense(m.id);
+
+        const technician = await getEmployeeById(expense.technicianId);
+        const chatId = expense.telegramChatId ?? technician?.telegramUserId;
+        if (chatId) {
+          try {
+            const token = await getTelegramToken();
+            const tg = new TelegramClient({ botToken: token });
+            const folioLabel = expense.folio ?? expense.id;
+            await tg.sendMessage({
+              chatId,
+              text: `Tu gasto ${folioLabel} fue eliminado por administración.`,
+            });
+          } catch (err) {
+            console.error('Failed to notify technician of expense delete', err);
+          }
+        }
+
+        return jsonResponse(200, { ok: true, id: m.id }, origin);
+      }
     }
     {
       const m = matchPath('/expenses/{id}/approve', path);
@@ -1456,7 +1546,7 @@ export async function handleAdminApi(
                   : await getTicket(ticketId);
               const followupLines = [
                 'Gasto aprobado en Sistema Viáticos',
-                `ID: ${expense.id}`,
+                `ID: ${expense.folio ?? expense.id}`,
                 `Técnico: ${technician?.name ?? expense.technicianId}`,
                 `Monto: ${expense.amount} ${expense.currency}`,
                 `Comercio: ${expense.merchant ?? '—'}`,
@@ -1571,6 +1661,7 @@ export async function handleAdminApi(
           const token = await getTelegramToken();
           const tg = new TelegramClient({ botToken: token });
           const summary = [
+            `ID: ${expense.folio ?? expense.id}`,
             expense.merchant ? `Comercio: ${expense.merchant}` : null,
             `Monto: ${expense.amount} ${expense.currency}`,
             expense.receiptDate ? `Fecha: ${expense.receiptDate}` : null,
@@ -1618,7 +1709,7 @@ export async function handleAdminApi(
           const tg = new TelegramClient({ botToken: token });
           await tg.sendMessage({
             chatId,
-            text: `Consulta sobre tu gasto:\n\n${body.text.trim()}`,
+            text: `Consulta sobre tu gasto ${expense.folio ?? expense.id}:\n\n${body.text.trim()}`,
           });
         }
 
@@ -1802,7 +1893,8 @@ export async function handleAdminApi(
           const csv = expensesToBandejaCsv(expenses, lookups);
           return textResponse(200, csv, origin, 'text/csv; charset=utf-8');
         }
-        const xlsx = await expensesToBandejaXlsx(expenses, lookups);
+        const loteLabel = batch.name || `Lote ${batch.id.slice(0, 8)}`;
+        const xlsx = await expensesToBandejaXlsx(expenses, lookups, { loteLabel });
         return binaryResponse(
           200,
           xlsx,

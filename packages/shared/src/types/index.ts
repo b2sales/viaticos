@@ -117,6 +117,8 @@ export interface Project {
 
 export interface Expense {
   id: string;
+  /** Human-readable sequential id, e.g. V-000123. */
+  folio?: string;
   technicianId: string;
   /** Set by admin on final approve; absent while PENDING from bot. */
   projectId?: string;
@@ -218,6 +220,7 @@ export const TABLE_NAMES = {
   settlementBatches: 'viaticos-settlement-batches',
   expenseMotives: 'viaticos-expense-motives',
   locations: 'viaticos-locations',
+  counters: 'viaticos-counters',
 } as const;
 
 export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {

@@ -251,6 +251,12 @@ export function LiquidacionPage() {
   // Columnas base compartidas de comprobantes
   const baseExpenseColumns: GridColDef<Expense>[] = [
     {
+      field: 'folio',
+      headerName: 'ID',
+      width: 110,
+      valueGetter: (_v, row) => row.folio ?? '—',
+    },
+    {
       field: 'receiptDate',
       headerName: 'Fecha',
       width: 110,

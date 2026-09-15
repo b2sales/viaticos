@@ -6,6 +6,8 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
@@ -23,6 +25,46 @@ import type {
 } from '../types';
 import { formatDate, formatMoney, CLIENT_KIND_LABELS } from '../types';
 
+function expenseSearchText(
+  e: Expense,
+  lookup: {
+    clientMap: Record<string, string>;
+    projectMap: Record<string, string>;
+    techMap: Record<string, string>;
+    locationMap: Record<string, string>;
+  },
+): string {
+  const parts = [
+    e.folio,
+    e.id,
+    statusLabels[e.status] ?? e.status,
+    e.status,
+    String(e.amount),
+    e.currency,
+    formatMoney(e.amount, e.currency),
+    e.merchant,
+    e.description,
+    e.receiptDate,
+    formatDate(e.receiptDate),
+    lookup.clientMap[e.clientId] ?? e.clientId,
+    e.clientId,
+    e.kind ? CLIENT_KIND_LABELS[e.kind] : '',
+    e.kind,
+    e.projectId ? lookup.projectMap[e.projectId] ?? e.projectId : '',
+    e.projectId,
+    e.glpiTicketNumber != null ? String(e.glpiTicketNumber) : '',
+    e.glpiTicketId != null ? String(e.glpiTicketId) : '',
+    e.glpiTicketTitle,
+    lookup.techMap[e.technicianId] ?? e.technicianId,
+    e.technicianId,
+    e.locationId ? lookup.locationMap[e.locationId] ?? e.locationId : '',
+    e.locationId,
+    e.submittedAt,
+    formatDate(e.submittedAt),
+  ];
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
 export function BandejaPage() {
   const api = useApi();
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -33,6 +75,7 @@ export function BandejaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('INBOX');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const lookup = useMemo(() => {
@@ -112,12 +155,12 @@ export function BandejaPage() {
   }, [loadExpenses]);
 
   const filtered = useMemo(() => {
+    let rows: Expense[];
     if (statusFilter === 'INBOX') {
-      return expenses.filter(
+      rows = expenses.filter(
         (e) => e.status === 'PENDING' || e.status === 'NEEDS_INFO',
       );
-    }
-    if (
+    } else if (
       statusFilter === 'PENDING' ||
       statusFilter === 'NEEDS_INFO' ||
       statusFilter === 'APPROVED' ||
@@ -125,12 +168,23 @@ export function BandejaPage() {
       statusFilter === 'IN_LIQUIDATION' ||
       statusFilter === 'PAID'
     ) {
-      return expenses.filter((e) => e.status === statusFilter);
+      rows = expenses.filter((e) => e.status === statusFilter);
+    } else {
+      rows = expenses;
     }
-    return expenses;
-  }, [expenses, statusFilter]);
+
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((e) => expenseSearchText(e, lookup).includes(q));
+  }, [expenses, statusFilter, searchQuery, lookup]);
 
   const columns: GridColDef<Expense>[] = [
+    {
+      field: 'folio',
+      headerName: 'ID',
+      width: 110,
+      valueGetter: (_v, row) => row.folio ?? '—',
+    },
     {
       field: 'status',
       headerName: 'Estado',
@@ -255,23 +309,38 @@ export function BandejaPage() {
         </Alert>
       )}
 
-      <FormControl size="small" sx={{ mb: 2, minWidth: 240 }}>
-        <InputLabel>Estado</InputLabel>
-        <Select
-          label="Estado"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <MenuItem value="INBOX">Pendientes de aprobación + Info requerida</MenuItem>
-          <MenuItem value="PENDING">Pendiente de aprobación</MenuItem>
-          <MenuItem value="NEEDS_INFO">Info requerida</MenuItem>
-          <MenuItem value="APPROVED">Pendiente de liquidación</MenuItem>
-          <MenuItem value="IN_LIQUIDATION">En liquidación (en lote)</MenuItem>
-          <MenuItem value="PAID">Liquidado / Pagado</MenuItem>
-          <MenuItem value="REJECTED">Rechazado</MenuItem>
-          <MenuItem value="ALL">Todos los comprobantes</MenuItem>
-        </Select>
-      </FormControl>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        sx={{ mb: 2 }}
+        alignItems={{ sm: 'center' }}
+      >
+        <FormControl size="small" sx={{ minWidth: 240 }}>
+          <InputLabel>Estado</InputLabel>
+          <Select
+            label="Estado"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <MenuItem value="INBOX">Pendientes de aprobación + Info requerida</MenuItem>
+            <MenuItem value="PENDING">Pendiente de aprobación</MenuItem>
+            <MenuItem value="NEEDS_INFO">Info requerida</MenuItem>
+            <MenuItem value="APPROVED">Pendiente de liquidación</MenuItem>
+            <MenuItem value="IN_LIQUIDATION">En liquidación (en lote)</MenuItem>
+            <MenuItem value="PAID">Liquidado / Pagado</MenuItem>
+            <MenuItem value="REJECTED">Rechazado</MenuItem>
+            <MenuItem value="ALL">Todos los comprobantes</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField
+          size="small"
+          label="Buscar"
+          placeholder="ID, técnico, comercio, cliente…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ minWidth: 280, flex: 1, maxWidth: 480 }}
+        />
+      </Stack>
 
       <DataGrid
         rows={filtered}

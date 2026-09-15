@@ -1,4 +1,11 @@
-import { getItem, putItem, query, scan, updateItem } from '../dynamodb/helpers.js';
+import {
+  deleteItem,
+  getItem,
+  putItem,
+  query,
+  scan,
+  updateItem,
+} from '../dynamodb/helpers.js';
 import {
   GSI_NAMES,
   TABLE_NAMES,
@@ -179,6 +186,10 @@ export async function listEmployees(): Promise<Employee[]> {
 
 export async function putEmployee(employee: Employee): Promise<void> {
   await putItem({ TableName: TABLE_NAMES.technicians, Item: employee });
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  await deleteItem({ TableName: TABLE_NAMES.technicians, Key: { id } });
 }
 
 export class TelegramLinkError extends Error {

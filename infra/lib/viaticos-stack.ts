@@ -209,6 +209,13 @@ export class ViaticosStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    const countersTable = new dynamodb.Table(this, 'CountersTable', {
+      tableName: TABLE_NAMES.counters,
+      partitionKey: { name: 'name', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     const commonEnv: Record<string, string> = {
       RECEIPTS_BUCKET: receiptsBucket.bucketName,
       TELEGRAM_SECRET_NAME: SECRETS.telegramBotToken,
@@ -270,6 +277,7 @@ export class ViaticosStack extends cdk.Stack {
       settlementBatchesTable.grantReadWriteData(fn);
       expenseMotivesTable.grantReadWriteData(fn);
       locationsTable.grantReadWriteData(fn);
+      countersTable.grantReadWriteData(fn);
     }
 
     glpiSecret.grantRead(apiFn);

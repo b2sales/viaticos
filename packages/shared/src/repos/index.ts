@@ -9,4 +9,5 @@ export * from './approval-chains.js';
 export * from './settlements.js';
 export * from './motives.js';
 export * from './locations.js';
+export * from './counters.js';
 export * from './seed.js';

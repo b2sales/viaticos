@@ -1,6 +1,7 @@
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -17,6 +18,7 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   Divider,
   FormControl,
@@ -34,8 +36,14 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs, { type Dayjs } from 'dayjs';
+import 'dayjs/locale/es';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../api/useApi';
+import { useAuthMe } from '../auth/AuthMeContext';
 import { statusChipStyles, statusLabels } from '../theme';
 import type {
   Client,
@@ -75,6 +83,7 @@ export function ExpenseDetailDialog({
   locationName,
 }: ExpenseDetailDialogProps) {
   const api = useApi();
+  const { capabilities } = useAuthMe();
   const [expense, setExpense] = useState<ExpenseDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +92,7 @@ export function ExpenseDetailDialog({
   const [askText, setAskText] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectText, setRejectText] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxZoom, setLightboxZoom] = useState(1);
 
@@ -103,7 +113,7 @@ export function ExpenseDetailDialog({
   const [editAmount, setEditAmount] = useState('');
   const [editCurrency, setEditCurrency] = useState('ARS');
   const [editMerchant, setEditMerchant] = useState('');
-  const [editReceiptDate, setEditReceiptDate] = useState('');
+  const [editReceiptDate, setEditReceiptDate] = useState<Dayjs | null>(null);
   const [editMotiveId, setEditMotiveId] = useState('');
   const [editLocationId, setEditLocationId] = useState('');
   const [editClientId, setEditClientId] = useState('');
@@ -115,7 +125,7 @@ export function ExpenseDetailDialog({
     setEditAmount(String(data.amount));
     setEditCurrency(data.currency || 'ARS');
     setEditMerchant(data.merchant ?? '');
-    setEditReceiptDate(data.receiptDate ?? '');
+    setEditReceiptDate(data.receiptDate ? dayjs(data.receiptDate) : null);
     setEditMotiveId(data.motiveId ?? '');
     setEditLocationId(data.locationId ?? '');
     setEditClientId(data.clientId);
@@ -149,6 +159,13 @@ export function ExpenseDetailDialog({
     !readOnly &&
     (expense?.status === 'PENDING' || expense?.status === 'NEEDS_INFO');
 
+  const canDelete =
+    capabilities.canConfigureRoles &&
+    expense != null &&
+    (expense.status === 'PENDING' ||
+      expense.status === 'NEEDS_INFO' ||
+      expense.status === 'REJECTED');
+
   useEffect(() => {
     if (open && expenseId) void load();
     if (!open) {
@@ -157,6 +174,7 @@ export function ExpenseDetailDialog({
       setAskOpen(false);
       setRejectText('');
       setRejectOpen(false);
+      setDeleteOpen(false);
       setLightboxOpen(false);
       setLightboxZoom(1);
       setSelectedProjectId('');
@@ -316,7 +334,7 @@ export function ExpenseDetailDialog({
         amount: Number(editAmount),
         currency: editCurrency.trim() || 'ARS',
         merchant: editMerchant.trim(),
-        receiptDate: editReceiptDate.trim(),
+        receiptDate: editReceiptDate?.format('YYYY-MM-DD') ?? '',
         motiveId: editMotiveId,
         locationId: editLocationId,
         clientId: editClientId,
@@ -396,6 +414,22 @@ export function ExpenseDetailDialog({
     }
   };
 
+  const handleDelete = async () => {
+    if (!expenseId) return;
+    setActionLoading(true);
+    setError(null);
+    try {
+      await api.delete(`/expenses/${expenseId}`);
+      setDeleteOpen(false);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const isPdf = Boolean(
     expense?.receiptS3Key?.toLowerCase().endsWith('.pdf') ||
     expense?.receiptUrl?.toLowerCase().includes('.pdf'),
@@ -411,7 +445,10 @@ export function ExpenseDetailDialog({
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Detalle del gasto</DialogTitle>
+        <DialogTitle>
+          Detalle del gasto
+          {expense?.folio ? ` · ${expense.folio}` : ''}
+        </DialogTitle>
         <DialogContent dividers>
           {loading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -468,6 +505,7 @@ export function ExpenseDetailDialog({
                     gap: 2,
                   }}
                 >
+                  <Field label="ID" value={expense.folio ?? '—'} />
                   <TextField
                     label="Monto"
                     type="number"
@@ -488,13 +526,15 @@ export function ExpenseDetailDialog({
                     value={editMerchant}
                     onChange={(e) => setEditMerchant(e.target.value)}
                   />
-                  <TextField
-                    label="Fecha del ticket"
-                    size="small"
-                    placeholder="YYYY-MM-DD"
-                    value={editReceiptDate}
-                    onChange={(e) => setEditReceiptDate(e.target.value)}
-                  />
+                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                    <DatePicker
+                      label="Fecha del ticket"
+                      value={editReceiptDate}
+                      onChange={setEditReceiptDate}
+                      format="DD/MM/YYYY"
+                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                    />
+                  </LocalizationProvider>
                   <FormControl fullWidth size="small">
                     <InputLabel id="edit-motive-label">Motivo</InputLabel>
                     <Select
@@ -612,6 +652,7 @@ export function ExpenseDetailDialog({
                     gap: 2,
                   }}
                 >
+                  <Field label="ID" value={expense.folio ?? '—'} />
                   <Field label="Comercio" value={expense.merchant ?? '—'} />
                   <Field
                     label="Fecha del ticket"
@@ -872,6 +913,17 @@ export function ExpenseDetailDialog({
           )}
         </DialogContent>
         <DialogActions>
+          {canDelete && !editMode && expense && (
+            <Button
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => setDeleteOpen(true)}
+              disabled={actionLoading}
+              sx={{ mr: 'auto' }}
+            >
+              Eliminar
+            </Button>
+          )}
           {editMode && expense && (
             <>
               <Button
@@ -980,6 +1032,32 @@ export function ExpenseDetailDialog({
             onClick={() => void runAction('reject')}
           >
             Confirmar rechazo
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Eliminar gasto</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            ¿Eliminar el gasto {expense?.folio ?? expense?.id}? Esta acción no se
+            puede deshacer. Se borrará el comprobante y se avisará al técnico.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={actionLoading}
+            onClick={() => void handleDelete()}
+          >
+            Eliminar
           </Button>
         </DialogActions>
       </Dialog>
