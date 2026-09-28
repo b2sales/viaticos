@@ -213,10 +213,9 @@ export function catalogKeyboard(
   return { inline_keyboard: rows };
 }
 
-export function incidentSkipKeyboard(): TelegramInlineKeyboardMarkup {
+export function incidentKeyboard(): TelegramInlineKeyboardMarkup {
   return {
     inline_keyboard: [
-      [{ text: 'Omitir incidente', callback_data: 'incident:skip' }],
       [{ text: '❌ Cancelar', callback_data: 'cancel' }],
     ],
   };

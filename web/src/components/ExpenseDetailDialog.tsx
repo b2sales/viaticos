@@ -159,12 +159,7 @@ export function ExpenseDetailDialog({
     !readOnly &&
     (expense?.status === 'PENDING' || expense?.status === 'NEEDS_INFO');
 
-  const canDelete =
-    capabilities.canConfigureRoles &&
-    expense != null &&
-    (expense.status === 'PENDING' ||
-      expense.status === 'NEEDS_INFO' ||
-      expense.status === 'REJECTED');
+  const canDelete = capabilities.canConfigureRoles && expense != null;
 
   useEffect(() => {
     if (open && expenseId) void load();
@@ -1047,6 +1042,9 @@ export function ExpenseDetailDialog({
           <DialogContentText>
             ¿Eliminar el gasto {expense?.folio ?? expense?.id}? Esta acción no se
             puede deshacer. Se borrará el comprobante y se avisará al técnico.
+            {expense?.settlementBatchId
+              ? ' Si está en un lote de liquidación, se quitará del lote y se recalcularán los totales.'
+              : ''}
           </DialogContentText>
         </DialogContent>
         <DialogActions>

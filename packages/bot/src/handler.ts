@@ -49,7 +49,7 @@ import {
   getContext,
   getDraft,
   helpText,
-  incidentSkipKeyboard,
+  incidentKeyboard,
   LINK_CODE_INVALID,
   LINK_CODE_INVALID_FORMAT,
   LINK_CODE_MAX_ATTEMPTS,
@@ -564,9 +564,9 @@ async function promptIncidente(
   await saveBotSession(session);
 
   const text =
-    'Número de *incidente GLPI* (opcional).\n' +
-    'Enviá el número o tocá *Omitir* para continuar sin incidente.';
-  const markup = incidentSkipKeyboard();
+    'Número de *incidente GLPI* (obligatorio).\n' +
+    'Enviá el número del incidente asociado a este gasto.';
+  const markup = incidentKeyboard();
   if (messageId) {
     await client.editMessageText({
       chatId,
@@ -663,7 +663,7 @@ async function finalizeExpense(
   technician: NonNullable<Awaited<ReturnType<typeof ensureTechnician>>>,
   draft: ExpenseDraft,
 ): Promise<void> {
-  if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId) {
+  if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
     await client.sendMessage({
       chatId,
       text: 'Faltan datos para registrar el gasto. Usá /cancelar y volvé a intentar.',
@@ -838,10 +838,7 @@ async function handleCallbackQuery(
   }
 
   if (data === 'incident:skip') {
-    draft.glpiTicketId = undefined;
-    draft.glpiTicketNumber = undefined;
-    draft.glpiTicketTitle = undefined;
-    await promptFinalConfirm(client, chatId, telegramUserId, technician, draft, messageId);
+    await promptIncidente(client, chatId, telegramUserId, technician, draft, messageId);
     return;
   }
 
@@ -852,7 +849,7 @@ async function handleCallbackQuery(
     }
     await saveBotSession(buildSession(telegramUserId, technician, 'IDLE', {}));
 
-    if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId) {
+    if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
       await client.sendMessage({
         chatId,
         text: 'Faltan datos para registrar el gasto. Usá /cancelar y volvé a intentar.',
@@ -1060,20 +1057,12 @@ async function handleTextMessage(
   }
 
   if (state === 'AWAITING_INCIDENTE') {
-    const trimmed = text.trim();
-    if (trimmed === '-' || trimmed.toLowerCase() === 'omitir') {
-      draft.glpiTicketId = undefined;
-      draft.glpiTicketNumber = undefined;
-      draft.glpiTicketTitle = undefined;
-      await promptFinalConfirm(client, chatId, telegramUserId, technician, draft);
-      return;
-    }
-
+    const trimmed = text.trim().replace(/^#/, '');
     if (!/^\d+$/.test(trimmed)) {
       await client.sendMessage({
         chatId,
-        text: 'Ingresá un número de incidente válido o tocá Omitir.',
-        replyMarkup: incidentSkipKeyboard(),
+        text: 'Ingresá un número de incidente GLPI válido (solo números).',
+        replyMarkup: incidentKeyboard(),
       });
       return;
     }
@@ -1084,11 +1073,18 @@ async function handleTextMessage(
       draft.glpiTicketNumber = ticket.number;
       draft.glpiTicketTitle = ticket.title;
       await promptFinalConfirm(client, chatId, telegramUserId, technician, draft);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      const notFound = /not found|\(404\)/i.test(message);
+      if (!notFound) {
+        console.error('GLPI getTicket failed', err);
+      }
       await client.sendMessage({
         chatId,
-        text: `No encontré el incidente #${trimmed} en GLPI. Verificá el número o tocá Omitir.`,
-        replyMarkup: incidentSkipKeyboard(),
+        text: notFound
+          ? `No encontré el incidente #${trimmed} en GLPI. Verificá el número.`
+          : 'GLPI no está disponible en este momento. Reintentá en unos minutos o usá /cancelar.',
+        replyMarkup: incidentKeyboard(),
       });
     }
     return;

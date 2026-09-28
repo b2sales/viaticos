@@ -1402,19 +1402,20 @@ export async function handleAdminApi(
         const expense = await getExpenseById(m.id);
         if (!expense) return jsonResponse(404, { error: 'Not found' }, origin);
 
-        const deletable =
-          expense.status === 'PENDING' ||
-          expense.status === 'NEEDS_INFO' ||
-          expense.status === 'REJECTED';
-        if (!deletable) {
-          return jsonResponse(
-            409,
-            {
-              error:
-                'Solo se pueden borrar gastos pendientes, con info requerida o rechazados',
-            },
-            origin,
-          );
+        if (expense.settlementBatchId) {
+          const batch = await getSettlementBatchById(expense.settlementBatchId);
+          if (batch) {
+            const expenseIds = batch.expenseIds.filter((id) => id !== m.id);
+            const remaining: Expense[] = [];
+            for (const id of expenseIds) {
+              const e = await getExpenseById(id);
+              if (e) remaining.push(e);
+            }
+            await updateSettlementBatch(batch.id, {
+              expenseIds,
+              totalByCurrency: sumTotals(remaining),
+            });
+          }
         }
 
         await deleteMessagesByExpenseId(m.id);
