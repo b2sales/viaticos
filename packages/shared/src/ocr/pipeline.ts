@@ -33,6 +33,13 @@ export async function detectDocumentText(s3Bucket: string, s3Key: string): Promi
   return lines.join('\n');
 }
 
+/** Payment screenshots show debits as "-$1.564,10"; an expense is always a positive amount. */
+function normalizeAmount(value: unknown): number | undefined {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n === 0) return undefined;
+  return Math.abs(n);
+}
+
 export async function interpretWithBedrock(ocrText: string): Promise<ExpenseSuggestion | null> {
   if (!ocrText.trim()) {
     return null;
@@ -89,7 +96,7 @@ export async function interpretWithBedrock(ocrText: string): Promise<ExpenseSugg
 
   const suggestion = JSON.parse(jsonMatch[0]) as ExpenseSuggestion;
   return {
-    amount: suggestion.amount ?? undefined,
+    amount: normalizeAmount(suggestion.amount),
     date: suggestion.date ?? undefined,
     merchant: suggestion.merchant ?? undefined,
     currency: suggestion.currency ?? undefined,

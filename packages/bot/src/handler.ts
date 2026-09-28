@@ -663,7 +663,7 @@ async function finalizeExpense(
   technician: NonNullable<Awaited<ReturnType<typeof ensureTechnician>>>,
   draft: ExpenseDraft,
 ): Promise<void> {
-  if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
+  if (!draft.amount || draft.amount <= 0 || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
     await client.sendMessage({
       chatId,
       text: 'Faltan datos para registrar el gasto. Usá /cancelar y volvé a intentar.',
@@ -750,7 +750,8 @@ async function handleCallbackQuery(
   }
 
   if (data === 'ocr:confirm') {
-    if (draft.amount == null) {
+    if (draft.amount == null || draft.amount <= 0) {
+      draft.amount = undefined;
       await updateBotSessionState(telegramUserId, 'AWAITING_AMOUNT', {
         ...context,
         draft,
@@ -849,7 +850,7 @@ async function handleCallbackQuery(
     }
     await saveBotSession(buildSession(telegramUserId, technician, 'IDLE', {}));
 
-    if (!draft.amount || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
+    if (!draft.amount || draft.amount <= 0 || !draft.clientId || !draft.motiveId || !draft.locationId || draft.glpiTicketId == null) {
       await client.sendMessage({
         chatId,
         text: 'Faltan datos para registrar el gasto. Usá /cancelar y volvé a intentar.',

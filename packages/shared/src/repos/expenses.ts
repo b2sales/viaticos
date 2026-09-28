@@ -119,6 +119,9 @@ export async function hasExpensesByTechnician(
 export async function createExpense(
   input: Omit<Expense, 'id' | 'folio' | 'createdAt' | 'updatedAt'>,
 ): Promise<Expense> {
+  if (!(input.amount > 0)) {
+    throw new Error(`Invalid expense amount: ${input.amount}`);
+  }
   const now = new Date().toISOString();
   const folio = await nextExpenseFolio();
   const expense: Expense = {

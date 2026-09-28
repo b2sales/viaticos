@@ -20,7 +20,8 @@
     "cdk:synth": "npm run cdk:synth -w @viaticos/infra",
     "cdk:deploy": "npm run cdk:deploy -w @viaticos/infra",
     "dev:web": "npm run dev -w @viaticos/web",
-    "backfill:folios": "npm run build -w @viaticos/shared && node packages/shared/dist/scripts/backfill-folios.js"
+    "backfill:folios": "npm run build -w @viaticos/shared && node packages/shared/dist/scripts/backfill-folios.js",
+    "fix:negative-amounts": "npm run build -w @viaticos/shared && node packages/shared/dist/scripts/fix-negative-amounts.js"
   },
   "engines": {
     "node": ">=20"
